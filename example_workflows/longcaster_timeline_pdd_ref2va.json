@@ -1,0 +1,657 @@
+{
+  "last_node_id": 28,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Stock REF2VA (pair with REF2VA PDD)"
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        360,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        440
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "title": "Video VAE"
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        570
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "title": "Audio VAE"
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3SigmaShift",
+      "pos": [
+        460,
+        100
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SigmaShift"
+      },
+      "widgets_values": [
+        12,
+        3
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MiniMaxH3PDDAccApply",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        330,
+        190
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            9
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PDDAccApply"
+      },
+      "widgets_values": [
+        "MiniMax-H3-Ref2VA-Acc-8Step.safetensors",
+        "8",
+        1,
+        1,
+        "error",
+        "",
+        true,
+        "error"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        1210,
+        100
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "Explicit attention backend for reproducibility"
+    },
+    {
+      "id": 24,
+      "type": "KSamplerSelect",
+      "pos": [
+        1210,
+        290
+      ],
+      "size": [
+        285,
+        70
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "Euler sampler - PDD baseline"
+    },
+    {
+      "id": 27,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        1590,
+        100
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 8
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "PDD REF2VA - 8 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - PDD REF2VA / Euler / 8 steps"
+    },
+    {
+      "id": 28,
+      "type": "LongCasterTimelineConfigurationSwitch",
+      "pos": [
+        2010,
+        100
+      ],
+      "size": [
+        330,
+        210
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_a",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 10
+        },
+        {
+          "name": "source_b",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        },
+        {
+          "name": "source_c",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        },
+        {
+          "name": "source_d",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        },
+        {
+          "name": "source_e",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            11
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfigurationSwitch"
+      },
+      "widgets_values": [
+        "A"
+      ],
+      "title": "Choose setup inside Timeline - slots A-E"
+    },
+    {
+      "id": 25,
+      "type": "LongCasterTimelineExecute",
+      "pos": [
+        2440,
+        100
+      ],
+      "size": [
+        410,
+        290
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": null
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": null
+        },
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineExecute"
+      },
+      "widgets_values": [
+        "ref2va",
+        ""
+      ],
+      "title": "LongCaster Timeline - REF2VA execution"
+    },
+    {
+      "id": 26,
+      "type": "Note",
+      "pos": [
+        2440,
+        440
+      ],
+      "size": [
+        520,
+        475
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "title": "Start here - generate from the Timeline app",
+      "widgets_values": [
+        "1. Select your installed filenames on the model, CLIP, video/audio VAE loaders and PDD Apply. Keep REF2VA paired with Ref2VA PDD, Sigma Shift video=12/audio=3, Euler sampler and PDD partition checks set to error.\n\n2. The existing setup is now bundled as \"PDD REF2VA - 8 steps\", connected to Configuration Switch slot A. Add other model/sampler/sigma paths through their own named Configuration nodes into slots B-E. CLIP and both VAEs stay shared on Execution.\n\n3. Open LongCaster from ComfyUI and keep this tab open. Create a production; its first scene and segment are created automatically. Upload named image references at Project, Scene or Segment scope, then write your prompt.\n\n4. In the right inspector, open Generation settings > Generation configuration and select a setup. Generate a take; choose another setup to compare another take. Each take records its configuration. Unused paths are excluded from generation.\n\n5. Review and Finalize, then Extend scene to continue from the finalized original AV latent. Use Replace tail segment for alternatives to a finalized tail.\n\nLeave request_token blank here: the app fills it. Duration, prompts, references and project preview are managed in Timeline. Restart ComfyUI and refresh its tab after installing the configuration nodes."
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      5,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      6,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      19,
+      0,
+      27,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      2,
+      0,
+      25,
+      0,
+      "CLIP"
+    ],
+    [
+      6,
+      3,
+      0,
+      25,
+      1,
+      "VAE"
+    ],
+    [
+      7,
+      4,
+      0,
+      25,
+      2,
+      "VAE"
+    ],
+    [
+      8,
+      24,
+      0,
+      27,
+      1,
+      "SAMPLER"
+    ],
+    [
+      9,
+      6,
+      1,
+      27,
+      2,
+      "SIGMAS"
+    ],
+    [
+      10,
+      27,
+      0,
+      28,
+      0,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      11,
+      28,
+      0,
+      25,
+      6,
+      "LONGCASTER_CONFIGURATION"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "REF2VA model and encoder / video and audio VAEs",
+      "bounding": [
+        15,
+        30,
+        405,
+        650
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Original PDD-ACC settings and external Euler sampler",
+      "bounding": [
+        435,
+        30,
+        1100,
+        345
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Named configurations and Timeline app connection",
+      "bounding": [
+        1565,
+        30,
+        1430,
+        920
+      ],
+      "color": "#4a786a",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.52,
+      "offset": [
+        35,
+        45
+      ]
+    },
+    "longcaster_timeline": {
+      "sample": "PDD REF2VA with named configuration switch",
+      "based_on": "ComfyUI-MinimaxH3-Longcaster/example_workflows/longcaster_pdd_ref2va.json"
+    }
+  },
+  "version": 0.4
+}

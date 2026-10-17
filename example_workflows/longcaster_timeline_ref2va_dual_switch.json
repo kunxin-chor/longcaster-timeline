@@ -1,0 +1,1182 @@
+{
+  "last_node_id": 43,
+  "last_link_id": 26,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        80
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Source A - Full REF2VA"
+    },
+    {
+      "id": 37,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        330
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Experimental source B - FL2VA"
+    },
+    {
+      "id": 38,
+      "type": "MiniMaxH3RefPatchLoader",
+      "title": "Experimental FL2VA + REF patch",
+      "pos": [
+        440,
+        330
+      ],
+      "size": [
+        350,
+        240
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3RefPatchLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref_patch.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 39,
+      "type": "LongCasterTimelineModelSwitch",
+      "title": "Model source",
+      "pos": [
+        850,
+        150
+      ],
+      "size": [
+        390,
+        400
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_a",
+          "type": "MODEL",
+          "link": 2
+        },
+        {
+          "name": "source_b",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "source_c",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "source_d",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "source_e",
+          "type": "MODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4,
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineModelSwitch"
+      },
+      "widgets_values": [
+        "A",
+        "Model source",
+        "ref2va",
+        "Full REF2VA",
+        "FL2VA + REF patch (experimental)",
+        "Source C",
+        "Source D",
+        "Source E"
+      ]
+    },
+    {
+      "id": 33,
+      "type": "ApplyHyperFlowH3",
+      "pos": [
+        1270,
+        50
+      ],
+      "size": [
+        350,
+        280
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            8
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ApplyHyperFlowH3"
+      },
+      "widgets_values": [
+        "custom_node_hyperflow_8step_v1.0_comfyui.safetensors",
+        1.0,
+        "bypass",
+        "auto",
+        false,
+        false,
+        false
+      ],
+      "title": "HyperFlow H3 - full REF2VA / native 8-step grid"
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3SigmaShift",
+      "pos": [
+        1270,
+        550
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            10,
+            21
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SigmaShift"
+      },
+      "widgets_values": [
+        12,
+        3
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MiniMaxH3PDDAccApply",
+      "pos": [
+        1600,
+        550
+      ],
+      "size": [
+        330,
+        190
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            11
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            14
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PDDAccApply"
+      },
+      "widgets_values": [
+        "MiniMax-H3-Ref2VA-Acc-8Step.safetensors",
+        "8",
+        1,
+        1,
+        "error",
+        "",
+        true,
+        "error"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        2020,
+        550
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            12
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "Explicit attention backend for reproducibility"
+    },
+    {
+      "id": 34,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        1660,
+        50
+      ],
+      "size": [
+        300,
+        58
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "HyperFlow path - Comfy Kitchen attention"
+    },
+    {
+      "id": 24,
+      "type": "KSamplerSelect",
+      "pos": [
+        1630,
+        340
+      ],
+      "size": [
+        285,
+        70
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            7,
+            13
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "Euler sampler - PDD baseline"
+    },
+    {
+      "id": 27,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        2370,
+        550
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 12
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 13
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            16
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "PDD REF2VA - 8 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - PDD REF2VA / Euler / 8 steps"
+    },
+    {
+      "id": 36,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        2030,
+        50
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 6
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 7
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            15
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "HyperFlow REF2VA - 8 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - HyperFlow REF2VA / Euler / 8 steps"
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "pos": [
+        2800,
+        650
+      ],
+      "size": [
+        360,
+        106
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            18
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        2800,
+        850
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            19
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "title": "Video VAE"
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        2800,
+        1000
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            20
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "title": "Audio VAE"
+    },
+    {
+      "id": 40,
+      "type": "ModelAttentionBackend",
+      "title": "Standard path - Comfy Kitchen attention",
+      "pos": [
+        1620,
+        1120
+      ],
+      "size": [
+        300,
+        90
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            22,
+            23
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ]
+    },
+    {
+      "id": 41,
+      "type": "BasicScheduler",
+      "title": "Standard REF2VA - 20 steps / simple",
+      "pos": [
+        1990,
+        1280
+      ],
+      "size": [
+        320,
+        150
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            25
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "simple",
+        20,
+        1.0
+      ]
+    },
+    {
+      "id": 42,
+      "type": "KSamplerSelect",
+      "title": "Standard REF2VA - res_multistep",
+      "pos": [
+        1990,
+        1500
+      ],
+      "size": [
+        320,
+        90
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            24
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "res_multistep"
+      ]
+    },
+    {
+      "id": 43,
+      "type": "LongCasterTimelineConfiguration",
+      "title": "Standard REF2VA - no acceleration",
+      "pos": [
+        2400,
+        1120
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 23
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 24
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            26
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "Standard REF2VA - 20 steps (no acceleration)",
+        "ref2va"
+      ]
+    },
+    {
+      "id": 28,
+      "type": "LongCasterTimelineConfigurationSwitch",
+      "pos": [
+        2810,
+        220
+      ],
+      "size": [
+        330,
+        210
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_a",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 15
+        },
+        {
+          "name": "source_b",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 16
+        },
+        {
+          "name": "source_c",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 26
+        },
+        {
+          "name": "source_d",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        },
+        {
+          "name": "source_e",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            17
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfigurationSwitch"
+      },
+      "widgets_values": [
+        "A"
+      ],
+      "title": "Acceleration"
+    },
+    {
+      "id": 25,
+      "type": "LongCasterTimelineExecute",
+      "pos": [
+        3220,
+        220
+      ],
+      "size": [
+        410,
+        290
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 18
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 19
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 20
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": null
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": null
+        },
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineExecute"
+      },
+      "widgets_values": [
+        "ref2va",
+        ""
+      ],
+      "title": "LongCaster Timeline - REF2VA execution"
+    },
+    {
+      "id": 26,
+      "type": "Note",
+      "pos": [
+        3220,
+        650
+      ],
+      "size": [
+        620,
+        650
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "title": "Start here - generate from the Timeline app",
+      "widgets_values": [
+        "DUAL SWITCH REF2VA TEST WORKFLOW\n\nIn LongCaster: Generation settings shows Model source and Acceleration. Production settings can save defaults for this workflow.\n\nModel A: full native REF2VA checkpoint. Model B: FL2VA plus MiniMaxH3RefPatchLoader, an EXPERIMENTAL approximation; not native REF2VA. Requires ComfyUI-MiniMaxH3_Ref-Patch and minimax_h3_ref_patch.safetensors in models/model_patches. Select actual installed checkpoint filenames in both loaders. No files are downloaded automatically.\n\nAcceleration A: HyperFlow 8-step native SIGMAS with Euler, no extra sigma shift. Requires the full node-build HyperFlow adapter. Acceleration B: PDD ACC 8-step native SIGMAS with Euler, video/audio shifts 12/3. Acceleration C: Standard REF2VA without an acceleration adapter, 20 steps, res_multistep sampler, simple scheduler, video/audio shifts 12/3. Comfy Kitchen is used on all three paths.\n\nOnly the selected source and acceleration branch are queued. Both choices are frozen in each take. Model/patch combinations require GPU testing; selecting a compatible socket does not prove output quality.\n\nMissing node packs/files, invalid switch selections and incompatible socket definitions are reported in the generation panel and block generation. Change defaults in Production after replacing a workflow or changing switch identities. Keep the original ComfyUI tab open.\n\nReference patch source: https://github.com/lihaoyun6/ComfyUI-MiniMaxH3_Ref-Patch\nHyperFlow: existing authorized ComfyUI-HyperFlow-H3 installation. No prompt skips, drift changes or automatic last-frame references."
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      37,
+      0,
+      38,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      39,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      38,
+      0,
+      39,
+      1,
+      "MODEL"
+    ],
+    [
+      4,
+      39,
+      0,
+      33,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      33,
+      0,
+      34,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      34,
+      0,
+      36,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      24,
+      0,
+      36,
+      1,
+      "SAMPLER"
+    ],
+    [
+      8,
+      33,
+      1,
+      36,
+      2,
+      "SIGMAS"
+    ],
+    [
+      9,
+      39,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      10,
+      5,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      6,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      12,
+      19,
+      0,
+      27,
+      0,
+      "MODEL"
+    ],
+    [
+      13,
+      24,
+      0,
+      27,
+      1,
+      "SAMPLER"
+    ],
+    [
+      14,
+      6,
+      1,
+      27,
+      2,
+      "SIGMAS"
+    ],
+    [
+      15,
+      36,
+      0,
+      28,
+      0,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      16,
+      27,
+      0,
+      28,
+      1,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      17,
+      28,
+      0,
+      25,
+      6,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      18,
+      2,
+      0,
+      25,
+      0,
+      "CLIP"
+    ],
+    [
+      19,
+      3,
+      0,
+      25,
+      1,
+      "VAE"
+    ],
+    [
+      20,
+      4,
+      0,
+      25,
+      2,
+      "VAE"
+    ],
+    [
+      21,
+      5,
+      0,
+      40,
+      0,
+      "MODEL"
+    ],
+    [
+      22,
+      40,
+      0,
+      41,
+      0,
+      "MODEL"
+    ],
+    [
+      23,
+      40,
+      0,
+      43,
+      0,
+      "MODEL"
+    ],
+    [
+      24,
+      42,
+      0,
+      43,
+      1,
+      "SAMPLER"
+    ],
+    [
+      25,
+      41,
+      0,
+      43,
+      2,
+      "SIGMAS"
+    ],
+    [
+      26,
+      43,
+      0,
+      28,
+      2,
+      "LONGCASTER_CONFIGURATION"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.45,
+      "offset": [
+        50,
+        50
+      ]
+    }
+  },
+  "version": 0.4
+}

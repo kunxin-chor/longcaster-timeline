@@ -1,0 +1,1134 @@
+{
+  "last_node_id": 36,
+  "last_link_id": 23,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            18
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Shared stock REF2VA model - PDD / Stock / HyperFlow"
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        360,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        440
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "title": "Video VAE"
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        570
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "title": "Audio VAE"
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3SigmaShift",
+      "pos": [
+        460,
+        100
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2,
+            12
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SigmaShift"
+      },
+      "widgets_values": [
+        12,
+        3
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MiniMaxH3PDDAccApply",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        330,
+        190
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            9
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PDDAccApply"
+      },
+      "widgets_values": [
+        "MiniMax-H3-Ref2VA-Acc-8Step.safetensors",
+        "8",
+        1,
+        1,
+        "error",
+        "",
+        true,
+        "error"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        1210,
+        100
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "Explicit attention backend for reproducibility"
+    },
+    {
+      "id": 24,
+      "type": "KSamplerSelect",
+      "pos": [
+        1210,
+        290
+      ],
+      "size": [
+        285,
+        70
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "Euler sampler - PDD baseline"
+    },
+    {
+      "id": 27,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        1590,
+        100
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 8
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "PDD REF2VA - 8 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - PDD REF2VA / Euler / 8 steps"
+    },
+    {
+      "id": 28,
+      "type": "LongCasterTimelineConfigurationSwitch",
+      "pos": [
+        2010,
+        300
+      ],
+      "size": [
+        330,
+        210
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_a",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 10
+        },
+        {
+          "name": "source_b",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 17
+        },
+        {
+          "name": "source_c",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 23
+        },
+        {
+          "name": "source_d",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        },
+        {
+          "name": "source_e",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            11
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfigurationSwitch"
+      },
+      "widgets_values": [
+        "A"
+      ],
+      "title": "Choose setup inside Timeline - slots A-E"
+    },
+    {
+      "id": 25,
+      "type": "LongCasterTimelineExecute",
+      "pos": [
+        2440,
+        300
+      ],
+      "size": [
+        410,
+        290
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": null
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": null
+        },
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineExecute"
+      },
+      "widgets_values": [
+        "ref2va",
+        ""
+      ],
+      "title": "LongCaster Timeline - REF2VA execution"
+    },
+    {
+      "id": 26,
+      "type": "Note",
+      "pos": [
+        2440,
+        660
+      ],
+      "size": [
+        550,
+        750
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "title": "Start here - generate from the Timeline app",
+      "widgets_values": [
+        "Three selectable REF2VA configurations\n\nA: PDD REF2VA - 8 steps. Existing PDD adapter, its exact SIGMAS output and Euler.\n\nB: Stock REF2VA - 30 steps. Existing editable comparison branch; not the standard 20-step base recipe. This branch is unchanged by the HyperFlow addition.\n\nC: HyperFlow REF2VA - 8 steps. Uses ApplyHyperFlowH3 from ComfyUI-HyperFlow-H3, its native 9-point SIGMAS and Euler. Model Attention Backend is applied AFTER HyperFlow. BasicScheduler and PDD are bypassed on this branch.\n\nThe shared default diffusion checkpoint is a full REF2VA model, so C selects custom_node_hyperflow_8step_v1.0_comfyui.safetensors. Strength 1.0, bypass, variant auto, downloads off, curve refit off. Select your installed converted HyperFlow node-build file under models/hyperflow. A generic standalone LoRA file is not interchangeable with this adapter.\n\nIf you replace the shared loader with a PRUNED model, change C to the _pruned adapter. Enable experimental_curve_refit only for a supported checkpoint-bound fit; name that experiment accordingly. See HYPERFLOW.md. No files are downloaded automatically.\n\nAll paths use video/audio shifts 12/3. HyperFlow reads the unpatched loader and produces its already shifted SIGMAS; do not add another scheduler or shift its SIGMAS again. CLIP and AV VAEs are shared.\n\nRestart ComfyUI after installing the node packs, load this workflow, then open Timeline from its ComfyUI button and keep that tab open. Choose Generation settings > Generation configuration > HyperFlow REF2VA - 8 steps.\n\nOnly the selected path is queued. Slots D-E remain free. No HyperFlow prompt timing skip, automatic last-frame image or additional overlap trim is added. Existing selected-take latent continuation stays unchanged.\n\nReferences only get aliases. Define subjects explicitly, e.g. <Subject 1> is the person in <picture.main>. Generate/review, then finalize, Extend scene or Replace tail segment as usual. Leave request_token blank; Timeline fills it."
+      ]
+    },
+    {
+      "id": 29,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        800,
+        550
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            13,
+            14
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "Stock path - Comfy Kitchen attention"
+    },
+    {
+      "id": 30,
+      "type": "BasicScheduler",
+      "pos": [
+        1210,
+        730
+      ],
+      "size": [
+        300,
+        130
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            15
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "simple",
+        30,
+        1.0
+      ],
+      "title": "Stock comparison - simple / 30 steps / full denoise"
+    },
+    {
+      "id": 31,
+      "type": "KSamplerSelect",
+      "pos": [
+        1210,
+        550
+      ],
+      "size": [
+        285,
+        70
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            16
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "Stock path - Euler sampler"
+    },
+    {
+      "id": 32,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        1590,
+        550
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 14
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 16
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            17
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "Stock REF2VA - 30 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - Stock REF2VA / Euler / 30 steps"
+    },
+    {
+      "id": 33,
+      "type": "ApplyHyperFlowH3",
+      "pos": [
+        800,
+        1010
+      ],
+      "size": [
+        350,
+        280
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            19
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            22
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ApplyHyperFlowH3"
+      },
+      "widgets_values": [
+        "custom_node_hyperflow_8step_v1.0_comfyui.safetensors",
+        1.0,
+        "bypass",
+        "auto",
+        false,
+        false,
+        false
+      ],
+      "title": "HyperFlow H3 - full REF2VA / native 8-step grid"
+    },
+    {
+      "id": 34,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        1210,
+        1010
+      ],
+      "size": [
+        300,
+        58
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            20
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "HyperFlow path - Comfy Kitchen attention"
+    },
+    {
+      "id": 35,
+      "type": "KSamplerSelect",
+      "pos": [
+        1210,
+        1190
+      ],
+      "size": [
+        300,
+        70
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            21
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "HyperFlow path - Euler (native recipe)"
+    },
+    {
+      "id": 36,
+      "type": "LongCasterTimelineConfiguration",
+      "pos": [
+        1590,
+        1010
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 20
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 21
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            23
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "HyperFlow REF2VA - 8 steps",
+        "ref2va"
+      ],
+      "title": "Named setup - HyperFlow REF2VA / Euler / 8 steps"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      5,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      6,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      19,
+      0,
+      27,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      2,
+      0,
+      25,
+      0,
+      "CLIP"
+    ],
+    [
+      6,
+      3,
+      0,
+      25,
+      1,
+      "VAE"
+    ],
+    [
+      7,
+      4,
+      0,
+      25,
+      2,
+      "VAE"
+    ],
+    [
+      8,
+      24,
+      0,
+      27,
+      1,
+      "SAMPLER"
+    ],
+    [
+      9,
+      6,
+      1,
+      27,
+      2,
+      "SIGMAS"
+    ],
+    [
+      10,
+      27,
+      0,
+      28,
+      0,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      11,
+      28,
+      0,
+      25,
+      6,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      12,
+      5,
+      0,
+      29,
+      0,
+      "MODEL"
+    ],
+    [
+      13,
+      29,
+      0,
+      30,
+      0,
+      "MODEL"
+    ],
+    [
+      14,
+      29,
+      0,
+      32,
+      0,
+      "MODEL"
+    ],
+    [
+      15,
+      30,
+      0,
+      32,
+      2,
+      "SIGMAS"
+    ],
+    [
+      16,
+      31,
+      0,
+      32,
+      1,
+      "SAMPLER"
+    ],
+    [
+      17,
+      32,
+      0,
+      28,
+      1,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      18,
+      1,
+      0,
+      33,
+      0,
+      "MODEL"
+    ],
+    [
+      19,
+      33,
+      0,
+      34,
+      0,
+      "MODEL"
+    ],
+    [
+      20,
+      34,
+      0,
+      36,
+      0,
+      "MODEL"
+    ],
+    [
+      21,
+      35,
+      0,
+      36,
+      1,
+      "SAMPLER"
+    ],
+    [
+      22,
+      33,
+      1,
+      36,
+      2,
+      "SIGMAS"
+    ],
+    [
+      23,
+      36,
+      0,
+      28,
+      2,
+      "LONGCASTER_CONFIGURATION"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Shared REF2VA model / text encoder / AV VAEs",
+      "bounding": [
+        15,
+        30,
+        405,
+        650
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "PDD / stock H3 sigma shift (video 12 / audio 3)",
+      "bounding": [
+        435,
+        30,
+        340,
+        270
+      ],
+      "color": "#3f789e",
+      "font_size": 20,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "A - PDD REF2VA / Euler / 8 steps",
+      "bounding": [
+        780,
+        30,
+        1190,
+        400
+      ],
+      "color": "#775897",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "B - Stock REF2VA / Euler / 30 steps (editable comparison)",
+      "bounding": [
+        780,
+        480,
+        1190,
+        440
+      ],
+      "color": "#487c65",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 5,
+      "title": "Named configuration selection in the Timeline app",
+      "bounding": [
+        1985,
+        230,
+        1050,
+        1240
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 6,
+      "title": "C - HyperFlow REF2VA / Euler / native 8 steps",
+      "bounding": [
+        780,
+        950,
+        1190,
+        410
+      ],
+      "color": "#a16b3f",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.48,
+      "offset": [
+        35,
+        45
+      ]
+    },
+    "longcaster_timeline": {
+      "sample": "Named switch comparison: PDD 8-step versus stock 30-step REF2VA",
+      "based_on": "ComfyUI-MinimaxH3-Longcaster/example_workflows/longcaster_pdd_ref2va.json",
+      "source_example": "longcaster_timeline_pdd_ref2va.json"
+    }
+  },
+  "version": 0.4
+}

@@ -1,0 +1,17 @@
+import {useEffect,useState} from 'react';
+import {Plus,Trash2} from 'lucide-react';
+import {Project,Lora} from './types';
+import {Scope,ScopePicker} from './ReferencesPanel';
+import {request} from './api';
+export function LorasPanel({project,sceneId,segmentId,busy,onSave}:{project:Project;sceneId:string;segmentId:string;busy:boolean;onSave:(scope:Scope,entries:Lora[])=>Promise<unknown>}){
+ const [scope,setScope]=useState<Scope>('scene'),[choices,setChoices]=useState<string[]>([]),[filename,setFilename]=useState(''),[error,setError]=useState(''),[saving,setSaving]=useState(false);
+ useEffect(()=>{let current=true;void request('/loras').then(result=>{if(current)setChoices(result.filenames);}).catch(e=>{if(current)setError(e.message);});return()=>{current=false;};},[]);
+ useEffect(()=>{if(scope==='segment'&&!segmentId)setScope('scene');},[scope,segmentId]);
+ const owner=scope==='project'?null:scope==='scene'?sceneId:segmentId;
+ const own=(project.loras||[]).filter(item=>item.scope===scope&&item.owner_id===owner);
+ const inherited=new Map<string,Lora>();for(const [level,id] of [['project',null],['scene',sceneId],['segment',segmentId]] as const){if(level===scope)break;for(const item of project.loras||[])if(item.scope===level&&item.owner_id===id)inherited.set(item.filename,item);}
+ const entries=[...inherited.values()].filter(item=>!own.some(local=>local.filename===item.filename)).concat(own);
+ async function save(next:Lora[]){setSaving(true);setError('');try{await onSave(scope,next);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
+ function edit(item:Lora,patch:Partial<Lora>){void save(own.filter(row=>row.filename!==item.filename).concat({...item,...patch,scope,owner_id:owner}));}
+ return <div className="lora-panel"><ScopePicker scope={scope} setScope={setScope} segmentId={segmentId}/><p className="muted">Model LoRAs apply after the chosen upstream configuration. Narrower definitions override the same filename. Subjects and prompts stay manually authored.</p>{entries.map(item=><div className="lora-card" key={item.filename}><strong title={item.filename}>{item.filename}</strong><small>{item.scope===scope?'Defined here':`Inherited from ${item.scope}`}</small><label><input type="checkbox" aria-label={`Enable LoRA ${item.filename}`} checked={item.enabled} disabled={busy||saving} onChange={event=>edit(item,{enabled:event.target.checked})}/>Enabled</label><label className="field-label">Model strength<input aria-label={`LoRA strength ${item.filename}`} type="number" min={-2} max={2} step={.05} defaultValue={item.strength} key={String(item.strength)} disabled={busy||saving} onBlur={event=>{const strength=Number(event.target.value);if(strength!==item.strength)edit(item,{strength});}}/></label>{item.scope===scope&&<button disabled={busy||saving} aria-label={`Remove LoRA ${item.filename}`} onClick={()=>void save(own.filter(row=>row.filename!==item.filename))}><Trash2 size={13}/>Remove</button>}</div>)}{!entries.length&&<p className="muted">No LoRAs in this scope.</p>}<select aria-label="Installed LoRA" value={filename} onChange={event=>setFilename(event.target.value)}><option value="">Choose an installed LoRA</option>{choices.filter(name=>!own.some(item=>item.filename===name)).map(name=><option key={name}>{name}</option>)}</select><button disabled={!filename||busy||saving} onClick={()=>{void save([...own,{filename,strength:1,enabled:true,scope,owner_id:owner}]).then(()=>setFilename(''));}}><Plus size={14}/>Add LoRA</button>{error&&<p className="warning" role="alert">{error}</p>}</div>;
+}

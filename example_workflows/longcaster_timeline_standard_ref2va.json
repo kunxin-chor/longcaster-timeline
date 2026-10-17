@@ -1,0 +1,510 @@
+{
+  "last_node_id": 27,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Stock REF2VA diffusion model"
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        360,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        440
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "title": "Video VAE"
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        570
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "title": "Audio VAE"
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3SigmaShift",
+      "pos": [
+        460,
+        100
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SigmaShift"
+      },
+      "widgets_values": [
+        12,
+        3
+      ]
+    },
+    {
+      "id": 19,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3,
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "title": "Explicit attention backend for reproducibility"
+    },
+    {
+      "id": 27,
+      "type": "BasicScheduler",
+      "pos": [
+        1140,
+        100
+      ],
+      "size": [
+        300,
+        125
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "simple",
+        20,
+        1.0
+      ],
+      "title": "Standard schedule - 20 steps / full denoise"
+    },
+    {
+      "id": 24,
+      "type": "KSamplerSelect",
+      "pos": [
+        1140,
+        320
+      ],
+      "size": [
+        285,
+        70
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ],
+      "title": "Euler sampler - standard baseline"
+    },
+    {
+      "id": 25,
+      "type": "LongCasterTimelineExecute",
+      "pos": [
+        1510,
+        100
+      ],
+      "size": [
+        390,
+        255
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 7
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 8
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 9
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 6
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineExecute"
+      },
+      "widgets_values": [
+        "ref2va",
+        ""
+      ],
+      "title": "LongCaster Timeline - REF2VA execution"
+    },
+    {
+      "id": 26,
+      "type": "Note",
+      "pos": [
+        1510,
+        420
+      ],
+      "size": [
+        470,
+        375
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "title": "Start here - generate from the Timeline app",
+      "widgets_values": [
+        "STANDARD REF2VA - no PDD accelerator.\n\n1. Select your installed REF2VA diffusion model, text encoder and both VAEs.\n\n2. Sigma Shift is video=12/audio=3. BasicScheduler uses simple / 20 steps / denoise=1.0; KSamplerSelect uses euler. Edit sampling controls on these nodes.\n\n3. Click LongCaster at the bottom right of ComfyUI. Create a production and New segment, upload named references in the app, write a prompt and Generate take.\n\n4. Review and Finalize, then Extend scene to continue from the finalized original AV latent.\n\nKeep this ComfyUI tab open. Leave request_token blank in this sample; the app fills it automatically. Prompts, references, resolution, duration and previews live in the app."
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      5,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      19,
+      0,
+      25,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      19,
+      0,
+      27,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      27,
+      0,
+      25,
+      5,
+      "SIGMAS"
+    ],
+    [
+      6,
+      24,
+      0,
+      25,
+      4,
+      "SAMPLER"
+    ],
+    [
+      7,
+      2,
+      0,
+      25,
+      1,
+      "CLIP"
+    ],
+    [
+      8,
+      3,
+      0,
+      25,
+      2,
+      "VAE"
+    ],
+    [
+      9,
+      4,
+      0,
+      25,
+      3,
+      "VAE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "REF2VA model and encoder / video and audio VAEs",
+      "bounding": [
+        15,
+        30,
+        405,
+        650
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Standard REF2VA - Sigma Shift / scheduler / sampler",
+      "bounding": [
+        435,
+        30,
+        1030,
+        390
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "LongCaster Timeline app connection",
+      "bounding": [
+        1485,
+        30,
+        520,
+        800
+      ],
+      "color": "#4a786a",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        35,
+        45
+      ]
+    },
+    "longcaster_timeline": {
+      "sample": "Standard REF2VA first slice",
+      "based_on": "Original LongCaster REF2VA loaders; standard LongCaster 20-step simple/Euler settings"
+    }
+  },
+  "version": 0.4
+}

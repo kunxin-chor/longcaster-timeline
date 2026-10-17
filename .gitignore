@@ -1,0 +1,7 @@
+__pycache__/
+.test-tmp/
+*.pyc
+frontend/node_modules/
+frontend/.browsers/
+frontend/test-results/
+frontend/playwright-report/

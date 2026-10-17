@@ -1,0 +1,2 @@
+# Optional if an H.264/AAC-capable ffmpeg is already on PATH.
+imageio-ffmpeg>=0.6.0,<1
