@@ -56,10 +56,10 @@ def atomic_json(path, value):
         temporary.unlink(missing_ok=True)
 
 
-def duration(seconds, context=0):
+def duration(seconds, context=0, *, video_only=False):
     if isinstance(seconds, bool) or not isinstance(seconds, (float, int)) or not math.isfinite(seconds) or not 1 <= seconds <= 15:
         raise ValueError("New footage duration must be between 1 and 15 seconds.")
-    if context not in (0, 39, 90, 141):
+    if context not in ((0,22) if video_only else (0, 39, 90, 141)):
         raise ValueError("Unsupported motion context.")
     target = seconds * 24 + context
     k = max(0, math.floor((target - 5) / 17))
@@ -72,7 +72,7 @@ def duration(seconds, context=0):
     return {"requested_seconds": seconds, "fps": 24, "sampled_frames": count, "context_frames": context,
             "new_frames": count - context, "new_seconds": (count - context) / 24,
             "delivery": {"start": context, "end": count}, "mask_profile": "hard_av_v1", "edge_correction": "off",
-            "audio": {"latent_rate": 40, "target_steps": audio_steps, "context_steps": context * 40 // 24,
+            "audio": {"latent_rate": 40, "target_steps": audio_steps, "context_steps": 0 if video_only else context * 40 // 24,
                 "target_rounding_error_numerator": audio_steps * 24 - count * 40, "target_rounding_error_denominator": 960,
                 "phase_correction": "none_unvalidated"}}
 
@@ -219,6 +219,8 @@ class Store:
                 take = state["takes"].get(payload.get("take_id"))
                 if not take:
                     raise ValueError("Take not found.")
+                if (take.get("receipt", {}).get("continuation_check") or {}).get("passed") is False:
+                    raise ValueError("Protected continuation context changed during sampling. This take is saved for review but cannot be finalized; inspect its execution receipt.")
                 path = self.asset(take["latent_path"])
                 if not path.is_file() or digest(path) != take["latent_sha256"]:
                     raise ValueError("Take latent is missing or corrupt.")
@@ -243,6 +245,11 @@ class Store:
                 if scene["segments"]: return deepcopy(state)
                 scene["segments"].append(blank_segment(scene["id"]))
                 scene["segments"][-1]["working_draft"].update(project_resolution(state))
+            elif action == "set_scene_anti_burn":
+                from .anti_burn import scene_controls
+                scene = next((s for s in state["scenes"] if s["id"] == payload.get("scene_id")), None)
+                if not scene: raise ValueError("Scene not found.")
+                scene["anti_burn"] = scene_controls(payload.get("anti_burn"))
             elif action == "rename_scene":
                 scene = next((s for s in state["scenes"] if s["id"] == payload.get("scene_id")), None)
                 name = str(payload.get("name", "")).strip()
@@ -272,6 +279,7 @@ class Store:
             elif action == "set_resolution":
                 from .project_settings import validate_resolution
                 if any(active_job(j) for j in state["jobs"].values()):raise Conflict("Finish generation before changing project resolution.")
+                if state["takes"]:raise Conflict("Generation resolution is locked after the first generated take. Duplicate without generations to choose a different resolution.")
                 state["resolution"]=validate_resolution(payload.get("width"),payload.get("height"))
                 for scene in state["scenes"]:
                     for segment in scene["segments"]:
@@ -287,7 +295,10 @@ class Store:
                 draft["fields"]=migrated
             elif action == "save_draft":
                 _, segment = self.segment(state, payload["segment_id"])
-                segment["working_draft"] = deepcopy(payload.get("draft", {}))
+                from .anti_burn import segment_controls
+                draft = deepcopy(payload.get("draft", {}))
+                if "anti_burn" in draft: draft["anti_burn"] = segment_controls(draft["anti_burn"])
+                segment["working_draft"] = draft
                 from .project_settings import project_resolution
                 segment["working_draft"].update(project_resolution(state))
             elif action == "create_segment":
@@ -375,6 +386,9 @@ class Store:
                 raise Conflict("Project changed. Refresh before generating.")
             if any(active_job(j) for j in state["jobs"].values()):
                 raise Conflict("Finish or cancel the current project job first.")
+            if state.get("experiment"):
+                from .experiments import verify_reused_control
+                verify_reused_control(self, state)
             mode = settings.get("mode", "new")
             if mode not in ("new", "extend", "regenerate"):
                 raise ValueError("Unsupported operation.")
@@ -384,6 +398,8 @@ class Store:
                 raise ValueError("Reference image size must be match or max.")
             profile = settings.get("profile", "ref2va")
             if profile not in ("ref2va", "fl2va"): raise ValueError("Unsupported model profile.")
+            from .image_continuation import method as continuation_method, validate as validate_image_continuation
+            continuation = continuation_method(settings.get("continuation_method"))
             scene = next((s for s in state["scenes"] if s["id"] == settings.get("scene_id")), None)
             if not scene:
                 raise ValueError("Select a scene.")
@@ -402,7 +418,7 @@ class Store:
                     raise ValueError("The continuation source must be the explicitly finalized take.")
                 if take["scene_id"] != scene["id"]:
                     raise ValueError("Cross-scene continuation is not in the first slice.")
-                if take["snapshot"]["profile"]!=profile:raise ValueError("Latent continuation must keep the source generation profile.")
+                if continuation == "latent" and take["snapshot"]["profile"]!=profile:raise ValueError("Latent continuation must keep the source generation profile.")
                 source = {k: deepcopy(take[k]) for k in ("id", "segment_id", "scene_id", "latent_path", "latent_sha256", "latent_resource_id", "plan", "width", "height")}
                 if not self.asset(source["latent_path"]).is_file() or digest(self.asset(source["latent_path"])) != source["latent_sha256"]:
                     raise ValueError("Source latent is missing or corrupt.")
@@ -415,8 +431,14 @@ class Store:
                 raise ValueError("Dimensions must be multiples of 32 between 256 and 2048.")
             if source and (width, height) != (source["width"], source["height"]):
                 raise ValueError("Latent continuation must use the source resolution.")
-            context = settings.get("context", 39) if source else 0
-            plan = duration(settings.get("seconds", 5), context)
+            if continuation == "last_frame" and mode != "regenerate":
+                validate_image_continuation(profile, source, settings)
+            if continuation == 'video_reference' and mode != 'regenerate':
+                from .video_continuation import validate as validate_video
+                validate_video(profile, source, settings)
+            image_motion=settings.get("image_motion_frames",0) if continuation=="last_frame" else 0
+            context = settings.get("context", 39) if source and continuation == "latent" else image_motion
+            plan = duration(settings.get("seconds", 5), context, video_only=bool(image_motion))
             if source and source["plan"]["sampled_frames"] < context:
                 raise ValueError("The source is shorter than the requested motion context.")
             seed = settings.get("seed", 1)
@@ -425,8 +447,19 @@ class Store:
             target_id = settings.get("segment_id")
             if not target_id and scene["segments"] and not scene["segments"][-1].get("active_output"):
                 target_id = scene["segments"][-1]["id"]
-            compiled = compile_prompt(settings.get("fields", {}), effective_references(state["references"], scene["id"], target_id))
-            if settings.get("profile", "ref2va") == "ref2va" and not compiled["images"]:
+            refs=effective_references(state["references"], scene["id"], target_id)
+            if continuation=="last_frame" and profile=="ref2va":
+                from .image_continuation import compile_with_frame, preview_source
+                compiled=compile_with_frame(settings.get("fields", {}), refs, source if mode!="regenerate" else preview_source(state,settings))
+            elif continuation=='video_reference':
+                compiled=None
+            else:
+                compiled=compile_prompt(settings.get("fields", {}), refs)
+            if continuation=='video_reference':
+                from .video_continuation import compile_with_video
+                from .image_continuation import preview_source
+                compiled=compile_with_video(settings.get('fields',{}), refs, source if mode!='regenerate' else preview_source(state,settings))
+            if settings.get("profile", "ref2va") == "ref2va" and not compiled["images"] and continuation!='video_reference':
                 raise ValueError("REF2VA requires at least one enabled project, scene or segment image reference.")
             if profile == "fl2va" and compiled["images"]:
                 raise ValueError("Exclude reference assets for this segment before using FL2VA text mode.")
@@ -441,8 +474,12 @@ class Store:
                 if not previous:
                     raise ValueError("Finalize a take before regenerating it.")
                 if previous["snapshot"]["profile"]!=profile:raise ValueError("Replacement must keep the original generation profile.")
+                if continuation != previous["snapshot"].get("continuation_method", "latent"):
+                    raise ValueError("Replacement must keep the original continuation method.")
+                if image_motion!=previous["snapshot"].get("image_motion_frames",0):
+                    raise ValueError("Replacement must keep its original image motion context.")
                 source = deepcopy(previous["snapshot"].get("source"))
-                plan = duration(settings.get("seconds", 5), previous["plan"]["context_frames"])
+                plan = duration(settings.get("seconds", 5), previous["plan"]["context_frames"], video_only=bool(image_motion))
                 if source and (width, height) != (source["width"], source["height"]):
                     raise ValueError("Regeneration must keep source geometry.")
                 if source and (not self.asset(source["latent_path"]).is_file() or digest(self.asset(source["latent_path"])) != source["latent_sha256"]):
@@ -462,6 +499,15 @@ class Store:
                 raise ValueError("Only the first segment starts independently; extend the scene tail to add footage.")
             if mode == "extend" and (index == 0 or source["segment_id"] != scene["segments"][index - 1]["id"]):
                 raise ValueError("An extension must continue the preceding finalized scene segment.")
+            if continuation == "last_frame":
+                validate_image_continuation(profile, source, settings)
+                plan["mask_profile"] = "ref2va_picture_first_frame_v1" if profile=="ref2va" else "first_frame_keyframe_v1"
+                if image_motion:plan["mask_profile"]="picture_short_video_context_v1"
+                plan["boundary_frame_delivery"] = "included"
+            if continuation=='video_reference':
+                from .video_continuation import validate as validate_video
+                validate_video(profile,source,settings,plan)
+                plan['mask_profile']='ref2va_video_reference_v1'
             from .configuration import freeze_configuration
             configuration = freeze_configuration(settings.get("configuration"))
             if configuration is not None and configuration["profile"] != profile:
@@ -475,10 +521,25 @@ class Store:
                     selected[configuration["selector_id"]] = configuration["slot"]
                 if any(defaults["selections"].get(key) != value for key,value in selected.items()):
                     raise ValueError("Generation switches differ from production defaults. Refresh generation settings or enable a segment override.")
-            snapshot = {"version": 1, "configuration": configuration, "operation": mode, "source": source, "plan": plan, "width": width, "height": height,
-                        "seed": seed, "ref_image_size": ref_image_size, "compiled": compiled, "profile": settings.get("profile", "ref2va"), "mh3_reviewed_revision": PIN, "drift": "off", "auto_frame": False, "prompt_timing": "authored"}
+            from .continuation_evidence import edge_policy
+            decode_edge = edge_policy(settings.get("decode_edge_frames", 0), source, plan)
+            plan["edge_correction"] = decode_edge["policy"]
+            snapshot = {"version": 1, "continuation_method": continuation, "image_motion_frames":image_motion,"configuration": configuration, "operation": mode, "source": source, "plan": plan, "width": width, "height": height,
+                        "seed": seed, "ref_image_size": ref_image_size, "compiled": compiled, "profile": settings.get("profile", "ref2va"), "mh3_reviewed_revision": PIN, "drift": decode_edge["policy"], "decode_edge": decode_edge, "auto_frame": False, "prompt_timing": "authored"}
             from .loras import effective_loras
             snapshot["loras"]=effective_loras(state,scene["id"],segment["id"])
+            from .anti_burn import freeze as freeze_anti_burn
+            snapshot["anti_burn"] = freeze_anti_burn(scene, settings, source, snapshot["loras"])
+            from .pdd_warmup import freeze as freeze_pdd_warmup
+            snapshot["pdd_warmup"] = freeze_pdd_warmup(settings.get("pdd_warmup"))
+            from .refine import freeze as freeze_refine
+            anchor_take = state["takes"].get((scene["segments"][0].get("active_output") or {}).get("take_id"))
+            snapshot["refine"] = freeze_refine(settings.get("refine"), source, anchor_take)
+            from .drift import freeze as freeze_protection
+            anchor_take = state["takes"].get((scene["segments"][0].get("active_output") or {}).get("take_id"))
+            snapshot["continuation_protection"] = freeze_protection(settings.get("continuation_protection"), source, plan, anchor_take, snapshot["refine"]["applied"])
+            if snapshot["continuation_protection"]["applied"]:
+                plan["mask_profile"] = "drift_control_av_v1" if snapshot["continuation_protection"]["drift_control"] else "hard_av_color_prefix_v1"
             job = {"id": uid(), "scene_id": scene["id"], "segment_id": segment["id"], "status": "queued", "snapshot": snapshot,
                    "snapshot_sha256": fingerprint(snapshot), "created_at": now(), "updated_at": now(), "error": None,
                    "progress": {"stage":"queued","updated_at":now(),"history":[{"stage":"queued","at":now()}]}}
@@ -509,7 +570,7 @@ class Store:
             return deepcopy(job)
 
     def stage(self, job_id, stage, *, prompt_id=None, value=None, maximum=None, dispatch=False, message=None):
-        phases=("queued","loading_models","preparing_references","encoding","preparing_continuation","sampling","saving_latent","decoding","saving_media","building_preview","complete","preview_failed","failed","cancelled")
+        phases=("queued","loading_models","preparing_references","encoding","preparing_continuation","preparing_protection","warming_up","sampling","refining","saving_latent","decoding","saving_media","building_preview","complete","preview_failed","failed","cancelled")
         if stage not in phases:raise ValueError("Unknown generation stage.")
         with self.locked():
             state=self._read();job=state["jobs"].get(job_id)

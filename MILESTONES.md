@@ -302,3 +302,17 @@ Verify at 1920×1080, 2560×1440 and 1366×768, including resizing and internal 
 M2 adds vertical multiple-take management/shortlisting and finalized-only left-side splice editing. Conditional rows appear only for an active splice and track that segment's screen span under zoom/resize; original latents remain independently owned. Basic scene creation is M1; M4 adds advanced New Scene placement and cross-scene bridges. M3/M4/M5 controls activate only when their backend operations exist.
 
 At delivery include screenshots, files changed, functional/viewport test results, material deviations and remaining milestone-gated functionality. A written UI specification or static mockup is not evidence that the live interactions are implemented.
+
+
+## Continuation acceptance implementation update - 2026-10-18
+
+See [Continuation acceptance and seam frame correction](CONTINUATION_ACCEPTANCE.md)
+for the implemented experimental decoded ownership policy, hard-mask runtime
+checks, saved seam diagnostics, review-only baseline comparison and native test
+protocol. Default correction remains Off. This is decoder boundary control,
+not the legacy fractional-mask treatment or a validated solution for cumulative
+appearance drift. Protected AV context is checked after sampling, recording exact
+comparison separately from the documented FP32 round-trip tolerance. Scene
+preview and export share the saved video ownership plan; audio timing and raw
+artifacts remain unchanged. Native 5-10 segment H3 quality/AV acceptance is still
+pending and must not be inferred from fixture-media/browser tests.

@@ -14,6 +14,23 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
   const catalog:Project[]=empty?[]:[p];
   let count=1;const submitted:Record<string,unknown>[]=[];
   const allSegments=()=>p.scenes.flatMap(scene=>scene.segments);
+  const compile=(body:any)=>{
+    const images=structuredClone(scopedReferences(p,'segment',body.scene_id,body.segment_id)).filter(item=>item.enabled);
+    const result:any={prompt:Object.entries(body.fields).map(([key,value])=>`${key}:\n${value}`).join('\n'),mappings:{},images};
+    if(body.continuation_method==='last_frame'&&body.profile==='ref2va'&&body.source_take_id){
+      const native_label=`<Picture ${images.length+1}>`;
+      result.continuation_picture={native_label};
+      result.automatic_additions={subject_definitions:`${native_label} is the final frame of the preceding segment and the first frame of [Shot 1].`,retention_analysis:`${native_label} ([Shot 1] first frame): fully_preserved - Preserve the opening frame.`,detailed_description:`The video continues from ${native_label} as its first frame. Start from the depicted pose and composition, then continue the following action naturally.`};
+      result.prompt+='\n'+Object.values(result.automatic_additions).join('\n');
+      images.push({id:'continuation',native_label,generated_role:'continuation_frame'} as any);
+    }
+    if(body.continuation_method==='video_reference'&&body.source_take_id){
+      result.continuation_video={native_label:'<Video 1>',audio_label:'<Audio 1>'};
+      result.automatic_additions={summary:'[video continuation + audio reference] '+body.fields.summary,detailed_description:'Continue immediately from the end of <Video 1>. Use <Audio 1> as a sound reference.'};
+      result.prompt+='\n'+Object.values(result.automatic_additions).join('\n');
+    }
+    return result;
+  };
   const addScene=(name:string)=>{
     const id=`scene-${++count}`,segmentId=`segment-${++count}`;
     const scene={id,name,segments:[{id:segmentId,name:'Segment 01',takes:[],active_output:null,working_draft:draft(id,segmentId)}]};
@@ -25,6 +42,7 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
  return {switches:live,error:(window as any).testSwitchError||''};
  };}}, {choices:configurations,switches});
   await page.exposeFunction('testSubmit',async(data:Record<string,unknown>)=>{submitted.push(data);});
+  await page.route('**/longcaster-timeline/anti-burn',route=>route.fulfill({json:{available:false,warning:'Anti-Burn LoRA not found. Install h3_antiburn_universal_v1.safetensors in models/loras.'}}));
   await page.route('**/longcaster-timeline/loras',route=>route.fulfill({json:{filenames:['style.safetensors','motion.safetensors']}}));
   await page.route('**/longcaster-timeline/projects**',async route=>{
     const req=route.request();const path=new URL(req.url()).pathname;const id=path.match(/\/projects\/([^/]+)/)?.[1];if(id){const selected=catalog.find(row=>row.id===id);if(selected)p=selected;}let result:unknown=p;
@@ -68,7 +86,7 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
     else if(req.method()==='POST') {
       const body=req.postDataJSON();
       if(path.endsWith('/migration-preview')){const segment=allSegments().find(s=>s.id===body.segment_id)!;const authored=segment.working_draft!.fields;result={fields:{...authored,subject_definitions:authored.subject_definitions.replace(/<hero>/gi,'<Subject 1>')+' Referenced appearance comes from <picture.hero>.',detailed_description:authored.detailed_description.replace(/<hero>/gi,'<Subject 1>')}};}
-      else if(path.endsWith('/compile'))result={prompt:Object.entries(body.fields).map(([k,v])=>`${k}:\n${v}`).join('\n'),mappings:{}};
+      else if(path.endsWith('/compile'))result=compile(body);
       else if(path.endsWith('/command')){
         if(body.action==='set_reference_image_size')p.ref_image_size=body.ref_image_size;
         if(body.action==='set_generation_defaults')p.generation_defaults=body.defaults;
@@ -84,6 +102,7 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
           const id=`segment-${++count}`;scene.segments.push({id,name:`Segment ${String(scene.segments.length+1).padStart(2,'0')}`,takes:[],active_output:null,working_draft:{...body.draft,segment_id:id}});p.last_created_segment_id=id;
           p.effective_references[id]=p.references;
         }
+        if(body.action==='set_scene_anti_burn')p.scenes.find(scene=>scene.id===body.scene_id)!.anti_burn=body.anti_burn;
         if(body.action==='save_draft')allSegments().find(segment=>segment.id===body.segment_id)!.working_draft=body.draft;
         if(body.action==='finalize'){const t=p.takes[body.take_id];allSegments().find(segment=>segment.id===t.segment_id)!.active_output={kind:'single_take',take_id:t.id};}
         if(body.action==='reference'){let r=p.references.find(r=>r.id===body.reference_id)!;if(body.scope&&body.scope!==r.scope){r={...r,id:`ref-override-${++count}`,scope:body.scope,owner_id:body.owner_id,overrides:r.overrides||r.id};p.references.push(r);}Object.assign(r,...['enabled','token_name','conditioning_mode','latent_strength'].filter(key=>body[key]!==undefined).map(key=>({[key]:body[key]})));if(body.replacement_draft)allSegments().find(segment=>segment.id===body.segment_id)!.working_draft=body.replacement_draft;}
@@ -94,7 +113,7 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
         const workingDraft=structuredClone(body.settings);
         if(p.generation_defaults&&workingDraft.configuration_override!==true){workingDraft.configuration_override=false;delete workingDraft.configuration_id;delete workingDraft.switch_selections;delete workingDraft.configuration;}
         allSegments().find(segment=>segment.id===body.settings.segment_id)!.working_draft=workingDraft;
-        const id=`job-${++count}`;const job={id,segment_id:body.settings.segment_id,status:'queued',created_at:new Date().toISOString(),progress:{stage:'queued'},snapshot:{...structuredClone(body.settings),ref_image_size:body.settings.ref_image_size||p.ref_image_size||'match',compiled:{images:structuredClone(scopedReferences(p,'segment',body.settings.scene_id,body.settings.segment_id))},loras:structuredClone(p.loras||[])}};p.jobs[id]=job;p.revision++;result={state:p,job};
+        const id=`job-${++count}`;const job={id,segment_id:body.settings.segment_id,status:'queued',created_at:new Date().toISOString(),progress:{stage:'queued'},snapshot:{...structuredClone(body.settings),ref_image_size:body.settings.ref_image_size||p.ref_image_size||'match',compiled:compile(body.settings),loras:structuredClone(p.loras||[])}};p.jobs[id]=job;p.revision++;result={state:p,job};
       }
     }
     await route.fulfill({json:result});
@@ -134,6 +153,101 @@ test('new segment, generate, finalize and frozen extension source',async({page})
   expect(job.snapshot.context).toBe(39);
   await expect(page.getByLabel('Frozen source prompt')).toHaveValue('[Shot 1] <hero> watches the waves.');
   expect(failures).toEqual([]);
+});
+
+test('last-frame extension uses FL2VA, keeps the finalized source and sends zero motion context',async({page})=>{
+  const failures:string[]=[];page.on('pageerror',e=>failures.push(e.message));
+  const {p,submitted,finish}=await fixture(page,false,[{id:'ref',name:'Native REF2VA',profile:'ref2va'},{id:'image',name:'FL2VA image',profile:'fl2va'}]);
+  await page.route('**/longcaster-timeline/capabilities',route=>route.fulfill({json:{image_continuation:4,image_motion:1,pdd_warmup:2}}));
+  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] A traveller watches the waves.');
+  await page.getByRole('button',{name:/^Generate (first segment|segment)$/}).click();
+  await expect.poll(()=>submitted.length).toBe(1);
+  const take=finish(p.scenes[0].segments[0].id);
+  await expect(page.getByRole('button',{name:'Finalize selected take'})).toBeEnabled();
+  await page.getByRole('button',{name:'Finalize selected take'}).click();
+  await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+  await page.getByRole('combobox',{name:'Generation configuration',exact:true}).selectOption('ref');
+  await page.getByRole('combobox',{name:'Continuation method',exact:true}).selectOption('last_frame');
+  await page.getByRole('combobox',{name:'Generation mode',exact:true}).selectOption('fl2va');
+  await expect(page.getByRole('combobox',{name:'Generation mode',exact:true})).toHaveValue('fl2va');
+  await expect(page.getByLabel('Motion context',{exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Motion context',{exact:true})).toHaveValue('0');
+  await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeDisabled();
+  await page.getByRole('combobox',{name:'Generation configuration',exact:true}).selectOption('image');
+  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The traveller turns toward the lighthouse.');
+  await page.getByRole('button',{name:'Generate segment',exact:true}).click();
+  await expect.poll(()=>submitted.length).toBe(2);
+  const snapshot=(Object.values(p.jobs).at(-1) as any).snapshot;
+  expect(snapshot.source_take_id).toBe(take.id);
+  expect(snapshot.continuation_method).toBe('last_frame');
+  expect(snapshot.profile).toBe('fl2va');expect(snapshot.context).toBe(0);
+  expect(snapshot.refine.enabled).toBe(false);expect(snapshot.continuation_protection).toBe('off');
+  expect(failures).toEqual([]);
+});
+
+test('REF2VA last-frame continuation retains enabled named references and generation profile',async({page})=>{
+  const {p,submitted,finish}=await fixture(page,false,[{id:'ref',name:'Native REF2VA',profile:'ref2va'}]);
+  await page.route('**/longcaster-timeline/capabilities',route=>route.fulfill({json:{image_continuation:4,image_motion:1,pdd_warmup:2}}));
+  const reference={id:'main',token_name:'main',display_name:'Main',scope:'project',owner_id:null,role:'picture',kind:'image',enabled:true,asset_path:'assets/main.png',asset_sha256:'b'.repeat(64)} as Reference;
+  p.references.push(reference);p.effective_references[p.scenes[0].segments[0].id]=p.references;p.revision++;
+  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] A person performs pull-ups.');
+  await page.getByRole('button',{name:/^Generate (first segment|segment)$/}).click();
+  await expect.poll(()=>submitted.length).toBe(1);
+  const take=finish(p.scenes[0].segments[0].id);
+  await expect(page.getByRole('button',{name:'Finalize selected take'})).toBeEnabled();
+  await page.getByRole('button',{name:'Finalize selected take'}).click();
+  await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+  await page.getByRole('combobox',{name:'Continuation method',exact:true}).selectOption('last_frame');
+  await expect(page.getByRole('combobox',{name:'Generation mode',exact:true})).toHaveValue('ref2va');
+  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The person continues performing pull-ups.');
+  await expect(page.getByRole('note')).toContainText('<Picture 2> is the last frame');
+  await expect(page.getByLabel('Automatic continuation instructions')).toContainText('The video continues from <Picture 2> as its first frame.');
+  await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue('[Shot 1] The person continues performing pull-ups.');
+  await page.getByRole('button',{name:'Toggle compiled prompt',exact:true}).click();
+  await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue(/<Picture 2> \(\[Shot 1\] first frame\): fully_preserved/);
+  await page.getByRole('button',{name:'Toggle compiled prompt',exact:true}).click();
+  await page.getByLabel('Motion context',{exact:true}).selectOption('22');
+  await page.getByRole('button',{name:'Generate segment',exact:true}).click();
+  await expect.poll(()=>submitted.length).toBe(2);
+  const snapshot=(Object.values(p.jobs).at(-1) as any).snapshot;
+  expect(snapshot.profile).toBe('ref2va');expect(snapshot.continuation_method).toBe('last_frame');
+  expect(snapshot.source_take_id).toBe(take.id);expect(snapshot.context).toBe(0);
+  expect(snapshot.image_motion_frames).toBe(22);
+  expect(snapshot.compiled.images).toHaveLength(2);
+  expect(snapshot.compiled.images[0]).toMatchObject({token_name:'main',enabled:true,asset_sha256:reference.asset_sha256});
+  expect(p.references[0].enabled).toBe(true);
+  expect(snapshot.compiled.images[1]).toMatchObject({native_label:'<Picture 2>',generated_role:'continuation_frame'});
+  expect(snapshot.compiled.prompt).toContain('The video continues from <Picture 2> as its first frame.');
+});
+
+test('VPipe-style continuation shows automatic wording, keeps PDD and blocks incompatible controls',async({page})=>{
+  const {p,submitted,finish}=await fixture(page,false,[{id:'ref',name:'Native REF2VA',profile:'ref2va'}]);
+  await page.route('**/longcaster-timeline/capabilities',route=>route.fulfill({json:{video_continuation:1,pdd_warmup:2}}));
+  const take=finish(p.scenes[0].segments[0].id);
+  await page.getByRole('button',{name:'Finalize selected take',exact:true}).click();
+  await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+  await page.getByLabel('PDD warmup',{exact:true}).selectOption('auto');
+  await page.getByLabel('Continuation method',{exact:true}).selectOption('video_reference');
+  await expect(page.getByLabel('Generation mode',{exact:true})).toHaveValue('ref2va');
+  await expect(page.getByLabel('Generation mode',{exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Motion context',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Latent overlap',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('PDD warmup',{exact:true})).toHaveValue('auto');
+  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] Continue the pull-ups.');
+  await expect(page.getByLabel('Automatic video continuation instructions')).toContainText('<Video 1>');
+  await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue('[Shot 1] Continue the pull-ups.');
+  await page.getByLabel('New footage duration',{exact:true}).fill('2');
+  await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeDisabled();
+  await page.getByLabel('New footage duration',{exact:true}).fill('5');
+  await expect(page.getByLabel('Continuation protection',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Enable H3 Refine',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Generate segment',exact:true}).click();
+  await expect.poll(()=>submitted.length).toBe(1);
+  const snapshot=(Object.values(p.jobs).at(-1) as any).snapshot;
+  expect(snapshot.continuation_method).toBe('video_reference');
+  expect(snapshot.source_take_id).toBe(take.id);expect(snapshot.pdd_warmup).toBe('auto');
+  expect(snapshot.image_motion_frames).toBe(0);
+  expect(snapshot.compiled.prompt).toContain('video continuation + audio reference');
 });
 
 test('queued cancellation allows another attempt',async({page})=>{
@@ -382,13 +496,16 @@ test('extension duration is adjacent, zero disables Extend and the new draft use
   await expect(duration).toHaveValue('6');
 });
 
-test('project resolution selector owns dimensions across new scenes and generation',async({page})=>{
-  const {p,submitted}=await fixture(page);
-  await page.getByRole('button',{name:'Project resolution',exact:true}).click();
-  await page.getByRole('combobox',{name:'Resolution preset'}).selectOption('1024x576');
-  await page.getByRole('button',{name:'Apply project resolution'}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  expect(p.resolution).toEqual({width:1024,height:576});
+test('generation resolution is only editable in Production and locks after an unfinalized take',async({page})=>{
+  const {p,submitted,finish}=await fixture(page);
+  await expect(page.getByRole('button',{name:'Project resolution',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Change project resolution',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Production',exact:true}).click();
+  await page.getByLabel('Generation format',{exact:true}).selectOption('widescreen');
+  await page.getByLabel('Generation megapixels',{exact:true}).fill('0.59');
+  await page.getByRole('button',{name:'Update generation resolution',exact:true}).click();
+  await expect.poll(()=>p.resolution).toEqual({width:1024,height:576});
+  await page.getByRole('button',{name:'Timeline',exact:true}).click();
   await page.getByRole('button',{name:'New scene',exact:true}).click();
   await page.getByLabel('Scene name').fill('Second');
   await page.getByRole('button',{name:'Create new scene'}).click();
@@ -399,6 +516,17 @@ test('project resolution selector owns dimensions across new scenes and generati
   await expect.poll(()=>submitted.length).toBe(1);
   const job=Object.values(p.jobs).at(-1) as any;
   expect(job.snapshot.width).toBe(1024);expect(job.snapshot.height).toBe(576);
+  const scene=p.scenes.find(scene=>scene.name==='Second')!;
+  finish(scene.segments[0].id);
+  expect(scene.segments[0].active_output).toBeNull();
+  await page.getByRole('button',{name:'Production',exact:true}).click();
+  await expect(page.getByText('Locked after the first generated take.',{exact:false})).toBeVisible();
+  await expect(page.getByLabel('Generation megapixels',{exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Generation format',{exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Generation width',{exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Update generation resolution',exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('1024');
+  await expect(page.getByLabel('Upscale width',{exact:true})).toBeEnabled();
 });
 
 test('subjects remain manually authored and assets only have typed aliases',async({page})=>{
@@ -709,33 +837,32 @@ test('LoRAs tab saves scoped model strength and survives route changes',async({p
 });
 
 
-test('Generation formats scale, preserve custom sizes, and save only on update',async({page})=>{
+test('Generation formats use megapixel targets, preserve existing sizes, and save only on update',async({page})=>{
  const {p}=await fixture(page,false,[],'home');
  await page.getByRole('button',{name:'Coastal Journey',exact:true}).click();
  const original=p.resolution ? {...p.resolution} : undefined;
  await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('768');
  await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('448');
  await expect(page.getByLabel('Generation format',{exact:true})).toHaveValue('widescreen');
- await expect(page.getByLabel('Generation resolution multiplier',{exact:true})).toHaveValue('0.75');
+ await expect(page.getByLabel('Generation megapixels',{exact:true})).toHaveValue('0.344');
  await page.getByLabel('Generation format',{exact:true}).selectOption('portrait-widescreen');
- await page.getByLabel('Generation resolution multiplier',{exact:true}).selectOption('1.5');
- await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('864');
- await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('1536');
+ await page.getByLabel('Generation megapixels',{exact:true}).fill('1');
+ await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('736');
+ await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('1344');
+ await expect(page.getByText('0.989 MP actual',{exact:false})).toBeVisible();
  expect(p.resolution).toEqual(original);
  await page.getByRole('button',{name:'Update generation resolution',exact:true}).click();
- await expect.poll(()=>p.resolution).toEqual({width:864,height:1536});
+ await expect.poll(()=>p.resolution).toEqual({width:736,height:1344});
  await page.getByLabel('Generation format',{exact:true}).selectOption('photo');
- await page.getByLabel('Generation resolution multiplier',{exact:true}).selectOption('1');
- await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('768');
- await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('512');
- await page.getByLabel('Generation format',{exact:true}).selectOption('widescreen');
- await page.getByLabel('Generation resolution multiplier',{exact:true}).selectOption('0.75');
- await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('448');
+ await page.getByLabel('Generation megapixels',{exact:true}).fill('0.5');
+ await expect(page.getByLabel('Generation width',{exact:true})).toHaveValue('864');
+ await expect(page.getByLabel('Generation height',{exact:true})).toHaveValue('576');
  await page.getByLabel('Generation format',{exact:true}).selectOption('cinema');
- await page.getByLabel('Generation resolution multiplier',{exact:true}).selectOption('2');
+ await page.getByLabel('Generation megapixels',{exact:true}).fill('4');
  await expect(page.getByRole('button',{name:'Update generation resolution',exact:true})).toBeDisabled();
  await page.getByLabel('Generation width',{exact:true}).fill('1024');
  await expect(page.getByLabel('Generation format',{exact:true})).toHaveValue('custom');
+ await expect(page.getByLabel('Generation megapixels',{exact:true})).toBeDisabled();
  await expect(page.getByRole('button',{name:'Update generation resolution',exact:true})).toBeEnabled();
 });
 
@@ -874,4 +1001,118 @@ test('normal generation keeps its seed and random generation freezes a fresh vis
  await page.getByRole('spinbutton',{name:'New footage duration',exact:true}).fill('0');
  await expect(page.getByRole('button',{name:'Generate first segment',exact:true})).toBeDisabled();
  await expect(page.getByRole('button',{name:'Generate segment with random seed',exact:true})).toBeDisabled();
+});
+
+
+test('seam frame correction freezes the requested offset and offers a review-only baseline',async({page})=>{
+ const {p,finish}=await fixture(page);
+ const control=page.getByRole('combobox',{name:'Seam frame correction',exact:true});
+ await expect(control).toBeDisabled();await expect(control).toHaveValue('0');
+ const segment=p.scenes[0].segments[0],first=finish(segment.id);
+ segment.active_output={kind:'single_take',take_id:first.id};p.revision++;
+ await expect(page.getByRole('button',{name:'Extend scene',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+ await expect(control).toBeEnabled();await expect(control).toHaveValue('0');
+ await control.selectOption('4');
+ await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The action continues.');
+ await page.getByRole('button',{name:'Generate segment',exact:true}).click();
+ await expect.poll(()=>Object.values(p.jobs).length).toBe(1);
+ expect((Object.values(p.jobs)[0] as any).snapshot.decode_edge_frames).toBe(4);
+ await expect(control).toBeDisabled();
+ const child=finish(p.scenes[0].segments[1].id);
+ child.snapshot.decode_edge={policy:'child_context_video_v1',frames:4};p.revision++;
+ const toggle=page.getByRole('checkbox',{name:'Use saved seam frame correction',exact:true});
+ await expect(toggle).toBeVisible();await expect(toggle).toBeChecked();
+ const request=page.waitForRequest(req=>req.url().endsWith('/preview')&&req.method()==='POST'&&req.postDataJSON().apply_decode_edge===false);
+ await toggle.uncheck();await request;
+ expect(child.snapshot.decode_edge.frames).toBe(4);
+ await expect(page.getByRole('region',{name:'Scene preview',exact:true}).locator('video')).toBeVisible();
+});
+
+
+test('a failed continuation check keeps preview available and explains why finalize is disabled',async({page})=>{
+ const {p,finish}=await fixture(page);
+ const take=finish(p.scenes[0].segments[0].id);
+ take.receipt.continuation_check={passed:false};p.revision++;
+ await expect(page.getByRole('button',{name:'Finalize selected take',exact:true})).toBeDisabled();
+ await expect(page.getByText('Protected context verification failed.',{exact:false})).toBeVisible();
+ await expect(page.getByRole('region',{name:'New generation',exact:true}).locator('video')).toBeVisible();
+});
+
+
+test('Anti-Burn scene inheritance, independent skip, missing file guard and segment override',async({page})=>{
+ const {p,submitted,finish}=await fixture(page);
+ await page.getByRole('button',{name:'Scene settings',exact:true}).click();
+ await page.getByLabel('Scene Anti-Burn',{exact:true}).check();
+ await expect.poll(()=>p.scenes[0].anti_burn?.enabled).toBe(true);
+ await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Anti-Burn LoRA not found');
+ await page.getByRole('button',{name:'Close scene settings'}).click();
+ await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] Waves roll.');
+ await expect(page.getByLabel('Segment Anti-Burn',{exact:true})).toHaveValue('inherit');
+ await expect(page.getByText('Skipped for this independent start.',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Generate first segment',exact:true}).click();
+ await expect.poll(()=>submitted.length).toBe(1);
+ finish(p.scenes[0].segments[0].id);
+ await page.getByRole('button',{name:'Finalize selected take'}).click();
+ await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+ const generate=page.getByRole('button',{name:'Generate segment',exact:true});
+ await expect(generate).toBeDisabled();
+ await expect(page.getByRole('alert').filter({hasText:'Anti-Burn LoRA not found'})).toContainText('Generation is blocked');
+ await page.getByLabel('Segment Anti-Burn',{exact:true}).selectOption('off');
+ await expect(generate).toBeEnabled();
+ await page.getByLabel('Segment Anti-Burn',{exact:true}).selectOption('on');
+ await page.route('**/longcaster-timeline/anti-burn',route=>route.fulfill({json:{available:true,filename:'h3_antiburn_universal_v1.safetensors'}}));
+ await page.getByRole('button',{name:'Refresh Anti-Burn availability'}).click();
+ await expect(generate).toBeEnabled();
+ await page.getByLabel('Override Anti-Burn strength',{exact:true}).check();
+ await page.getByLabel('Segment Anti-Burn strength',{exact:true}).fill('0.35');
+ await page.getByLabel('Segment Anti-Burn strength',{exact:true}).blur();
+ await generate.click();
+ await expect.poll(()=>submitted.length).toBe(2);
+ const job=Object.values(p.jobs).at(-1) as any;
+ expect(job.snapshot.anti_burn).toEqual({mode:'on',strength:.35});
+});
+
+
+test('continuation protection is explicit and cannot stack with H3 Refine',async({page})=>{
+  await fixture(page);
+  const protection=page.getByLabel('Continuation protection',{exact:true});
+  const refine=page.getByLabel('Enable H3 Refine',{exact:true});
+  await expect(protection).toHaveValue('off');
+  await protection.selectOption('drift_color');
+  await expect(refine).toBeDisabled();
+  await protection.selectOption('off');
+  await refine.check();
+  await expect(protection).toBeDisabled();
+  await refine.uncheck();
+  await expect(protection).toBeEnabled();
+});
+
+test('generation settings show only controls relevant to each continuation method',async({page})=>{
+  await fixture(page);
+  const method=page.getByLabel('Continuation method',{exact:true});
+  const overlap=page.getByLabel('Latent overlap',{exact:true});
+  const motion=page.getByLabel('Motion context',{exact:true});
+  const protection=page.getByLabel('Continuation protection',{exact:true});
+  const refine=page.getByLabel('Enable H3 Refine',{exact:true});
+  const correction=page.getByLabel('Seam frame correction',{exact:true});
+  const warmup=page.getByLabel('PDD warmup',{exact:true});
+  await expect(overlap).toBeVisible();await expect(motion).toHaveCount(0);
+  await expect(protection).toBeVisible();await expect(refine).toBeVisible();
+  await expect(page.getByText('REF2VA adds the previous segment', {exact:false})).toHaveCount(0);
+  await protection.selectOption('drift_color');
+  await method.selectOption('last_frame');
+  await expect(motion).toBeVisible();await expect(overlap).toHaveCount(0);
+  await expect(protection).toHaveCount(0);await expect(refine).toHaveCount(0);
+  await expect(page.getByLabel('Refinement method',{exact:true})).toHaveCount(0);
+  await expect(correction).toHaveCount(0);await expect(warmup).toBeVisible();
+  await method.selectOption('latent');
+  await expect(protection).toHaveValue('off');await expect(refine).not.toBeChecked();
+  await refine.check();
+  await method.selectOption('video_reference');
+  await expect(motion).toHaveCount(0);await expect(overlap).toHaveCount(0);
+  await expect(protection).toHaveCount(0);await expect(refine).toHaveCount(0);
+  await expect(correction).toHaveCount(0);await expect(warmup).toBeVisible();
+  await method.selectOption('latent');
+  await expect(refine).not.toBeChecked();await expect(overlap).toHaveValue('39');
 });

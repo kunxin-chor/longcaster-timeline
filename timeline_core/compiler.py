@@ -36,10 +36,13 @@ def effective_references(references, scene_id, segment_id):
     return list(resolved.values())
 
 
-def compile_prompt(fields,references):
+def compile_prompt(fields,references, *, allow_generated_video=False):
     if not isinstance(fields,dict) or set(fields)-set(FIELDS): raise ValueError("Unknown prompt field.")
     authored={name:fields.get(name,"") for name in FIELDS}
     if any(not isinstance(v,str) or len(v)>50000 for v in authored.values()): raise ValueError("Prompt fields must be text, at most 50,000 characters each.")
+    def available(reference):
+        return reference['kind']=='image' or (allow_generated_video and
+            (reference['kind'],reference.get('generated_role')) in (('video','continuation_video'),('audio','continuation_audio')))
     names={}; legacy={}; mappings={}; images=[]; assets=[]; counts={kind:0 for kind in KINDS}
     declared=[int(m.group(1)) for m in SUBJECT.finditer(authored["subject_definitions"])]
     if len(declared)!=len(set(declared)):raise ValueError("Duplicate subject definition; define each Subject label once.")
@@ -55,7 +58,7 @@ def compile_prompt(fields,references):
         kind=reference["kind"];counts[kind]+=1
         native=f"<{LABELS[kind]} {counts[kind]}>"
         # A reference is always a media asset, regardless of obsolete role metadata.
-        record={**deepcopy(reference),**controls,"native_label":native,"qualified_token":key,"available":kind=="image"}
+        record={**deepcopy(reference),**controls,"native_label":native,"qualified_token":key,"available":available(reference)}
         assets.append(record)
         if kind=="image": images.append(record)
         mapping={"reference_id":reference["id"],"authored_name":qualified_name(reference),"label":native,"source_label":native,"asset_sha256":reference["asset_sha256"],"kind":kind}
@@ -72,7 +75,7 @@ def compile_prompt(fields,references):
                 return f"<Subject {number}>"
             kind={"picture":"image","video":"video","audio":"audio"}[category]
             if number>counts[kind]: raise ValueError(f"Native label {match.group(0)} has no supplied reference.")
-            if kind!="image":raise ValueError("Video/audio reference conditioning is not implemented yet; disable these sources before generation.")
+            if kind!="image" and not any(a["native_label"]==f"<{LABELS[kind]} {number}>" and a["available"] for a in assets):raise ValueError("Video/audio reference conditioning is not implemented yet; disable these sources before generation.")
             return f"<{LABELS[kind]} {number}>"
         if key in legacy and len(legacy[key])>1:
             choices=", ".join("<"+qualified_name(r)+">" for r in legacy[key])
@@ -84,7 +87,7 @@ def compile_prompt(fields,references):
             raise ValueError(f"Bare reference <{value}> is not supported; use {choices} for assets. Write <Subject N> definitions and reference relationships manually.")
         if key not in mappings:raise ValueError(f"Unknown named reference <{value}>.")
         mapping=mappings[key]
-        if mapping["kind"]!="image":raise ValueError("Video/audio reference conditioning is not implemented yet; disable these sources before generation.")
+        if mapping["kind"]!="image" and not available(names[key]):raise ValueError("Video/audio reference conditioning is not implemented yet; disable these sources before generation.")
         return mapping["label"]
     for text in authored.values():
         if re.search(r"<(?:picture|video|audio)\.[^>\r\n]*(?:$|\n)",text,re.I):raise ValueError("Malformed qualified reference token; close it with >.")

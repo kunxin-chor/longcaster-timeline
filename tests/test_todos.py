@@ -216,7 +216,7 @@ class ProjectAndProgressTests(unittest.TestCase):
         self.store.stage(job['id'],'queued',prompt_id='ours',dispatch=True)
         self.assertEqual(self.store.load()['jobs'][job['id']]['progress']['stage'],'encoding')
 
-    def test_changed_project_resolution_does_not_resize_or_continue_old_latents(self):
+    def test_project_resolution_locks_after_first_generated_take(self):
         job=self.queue();self.store.claim(job['id'])
         take_id=uid();artifact=self.store.asset(f'takes/{take_id}/original.mmh3')
         artifact.parent.mkdir(parents=True);artifact.write_bytes(b'original latent bytes')
@@ -224,13 +224,33 @@ class ProjectAndProgressTests(unittest.TestCase):
         preview=self.store.asset(f'takes/{take_id}/preview.mp4');preview.write_bytes(b'preview')
         atomic_json(preview.with_suffix('.json'),dict(status='ready',source_sha256=take['latent_sha256'],path=f'takes/{take_id}/preview.mp4'))
         self.store.stage(job['id'],'complete');self.command('finalize',take_id=take_id)
-        self.command('set_resolution',width=1024,height=576)
+        with self.assertRaisesRegex(Conflict,'locked after the first generated take'):
+            self.command('set_resolution',width=1024,height=576)
+        self.assertEqual(project_resolution(self.store.load()),{'width':768,'height':448})
         draft={**self.settings,'mode':'extend','source_take_id':take_id,'width':1024,'height':576,'context':39}
         data=self.command('create_segment',scene_id=self.scene['id'],after_segment_id=take['segment_id'],draft=draft)
-        with self.assertRaisesRegex(ValueError,'source resolution'):
+        with self.assertRaisesRegex(ValueError,'project resolution'):
             self.queue(**{**draft,'segment_id':data['last_created_segment_id']})
         self.assertEqual(artifact.read_bytes(),b'original latent bytes')
         self.assertEqual(self.store.load()['takes'][take_id],take)
+
+    def test_unfinalized_take_with_failed_preview_still_locks_resolution(self):
+        job=self.queue();self.store.claim(job['id'])
+        take_id=uid();artifact=self.store.asset(f'takes/{take_id}/original.mmh3')
+        artifact.parent.mkdir(parents=True);artifact.write_bytes(b'latent')
+        self.store.complete(job['id'],dict(take_id=take_id,latent_path=f'takes/{take_id}/original.mmh3',
+            latent_sha256=digest(artifact),latent_resource_id=uid()),{})
+        self.store.stage(job['id'],'preview_failed')
+        reopened=Store(self.store.root,self.store.path.name)
+        with self.assertRaisesRegex(Conflict,'locked after the first generated take'):
+            reopened.command(reopened.load()['revision'],'set_resolution',{'width':1024,'height':576})
+        self.assertIsNone(reopened.load()['scenes'][0]['segments'][0]['active_output'])
+        from timeline_core.duplicate import duplicate_without_generations
+        copied=duplicate_without_generations(reopened,'New resolution test')
+        target=Store(self.store.root,copied['id'])
+        updated=target.command(target.load()['revision'],'set_resolution',{'width':1024,'height':576})
+        self.assertEqual(updated['resolution'],{'width':1024,'height':576})
+        self.assertEqual(reopened.load()['resolution'],{'width':768,'height':448})
 
     def test_migration_requires_review_and_never_rewrites_generated_data(self):
         data=self.store.load();item=ref();data['references']=[item]

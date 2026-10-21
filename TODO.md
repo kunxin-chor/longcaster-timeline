@@ -117,3 +117,33 @@ Status: **Pending**. Added 2026-10-18. Planning only; no generation action is im
 - [ ] Evaluate [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine) as an implementation reference or optional integration. Start by validating the native masked baseline; assess its optional approximate frozen-video cache separately for quality, compatibility, compute and memory tradeoffs.
 
 Native masking reference: [ComfyUI MiniMax H3 documentation](https://github.com/Comfy-Org/docs/blob/main/tutorials/video/minimax/minimax-h3-native.mdx). Acceptance requires real GPU tests with LongCaster's supported model/configuration paths, especially accelerated first-pass takes and continuation seams.
+
+
+## Automatic continuation drift comparisons - 2026-10-18
+
+- [x] Isolated control and H3 Refine chains with automatic technical acceptance, explicit selected root, 20s/60s idle rest and cancellation.
+- [x] Saved baseline or current generation switches; same checked configuration in both arms, standard/accelerated schedules supported.
+- [x] Optional continuation-only H3 Refine, source/audio preservation, original and derived archives, sigma/timing provenance.
+- [ ] Native PDD comparison from baseline 61095971-2651-4673-b374-5de917e8ed2b, then standard REF2VA and HyperFlow smoke/A-B runs.
+- [x] Implement and integration-test upstream Drift Control, Color Stable only and combined protection as separate selectable comparison arms.
+- [ ] Run native PDD visual/AV comparisons for the three protection arms against the existing control.
+- [x] Implement noEmbryo statistics/detail and character-masked refinement adapters. All five handoff/refinement arms completed four native continuations each; evidence in HANDOFF_REFINE.md.
+- [x] Resume noEmbryo detail and character-masked native arms after explicit request; eight additional takes completed without regenerating controls.
+- [ ] Add Pull-Forward and combinations supported by individual results.
+- [x] Implement last-frame continuation: REF2VA uses an added Picture reference with visible automatic definition/retention/Shot 1 wording; FL2VA uses its native first-frame guide. Frozen source; image-only has zero history, with optional 22-frame video-only motion context. Audio starts fresh. See LAST_FRAME_CONTINUATION.md.
+- [x] Native REF2VA/PDD picture-only and 22-frame video-motion experiments: image-only failed three attempts; motion improved two joins with verified PDD handoff and prefix preservation. Residual pose/texture discontinuity remains.
+- [ ] Broader last-frame acceptance: FL2VA, standard REF2VA/other acceleration, audio seams and long-chain identity. Do not label the current result perfectly seamless.
+- [x] Last-frame restart with optional 22-frame video motion context, including native PDD test.
+- [ ] Separate standard-H3 Seam Restore experiments.
+
+See [DRIFT_EXPERIMENTS.md](DRIFT_EXPERIMENTS.md) for usage, limitations, provenance and verification. Anti-Burn remains excluded from this PDD test round.
+
+
+## VPipe-style video-reference continuation - 2026-10-19
+
+- [x] Separate REF2VA option using the final 90 decoded source frames and matching audio as native AV references, with visible prompt additions, frozen provenance and independent PDD handoff.
+- [x] CPU regression, source/audio/conditioning checks, TypeScript/Vite build and mocked browser coverage.
+- [x] Bounded native REF2VA/PDD comparison: two distinct seeds plus one recorded accidental same-seed repeat. Framing/action continuity failed; 134-135s sampling versus 82-84s for short motion. Reused root/controls, retained 8-base/2-PDD handoff and 20s idle rest. No takes finalized; no further jobs queued. See VIDEO_REFERENCE_CONTINUATION.md.
+- [ ] Broader video-reference testing on standard REF2VA and other prompts; no general reliability claim from this small test.
+
+See [VIDEO_REFERENCE_CONTINUATION.md](VIDEO_REFERENCE_CONTINUATION.md).

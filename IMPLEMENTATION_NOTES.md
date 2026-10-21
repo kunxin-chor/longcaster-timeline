@@ -144,3 +144,8 @@ Added a project-manager action and POST `projects/{project}/duplicate`. A new pr
 Copied segment placeholders are planned prompts. The generation-tail guard permits only empty planned placeholders after the current segment; generated downstream footage still blocks historical generation. The backend rejects future copied segments before predecessors are finalized. Planned state is consumed at queue time. The UI opens the first unfinished copied segment, rebinds continuation to the newly finalized preceding take, and advances to the next copied prompt after finalization. Future prompts may be edited while generation remains blocked.
 
 Validation includes independent asset copies and remapped scopes/overrides, original manifest preservation, no generated artifacts, selected-take prompt fallback, failed-copy cleanup and complete sequential generation/publication using new take IDs. Browser coverage duplicates a two-segment project, checks its prompts and empty take/job lists, blocks out-of-order generation and verifies the second generation uses the first new take rather than the original source. GPU sampling is simulated in these checks.
+
+
+### 2026-10-18 - automatic comparison and H3 Refine first slice
+
+Added the documented [drift comparison runner and opt-in H3 Refine adapter](DRIFT_EXPERIMENTS.md). Reuses pinned dntpi MIT arithmetic helpers with Timeline hard AV preservation and actual-schedule Euler refinement. Baseline matching and alternate current-switch configurations are supported; originals are retained and accepted derived take IDs form subsequent context. Backend/tensor/browser/build checks pass as documented. No native GPU quality conclusion is claimed, and no baseline generation has been altered.

@@ -85,7 +85,16 @@ async def compile_route(request):
     try:
         body = await request.json(); store = Store(projects_root(), request.match_info["project"]); data = store.load()
         refs = effective_references(data["references"], body.get("scene_id"), body.get("segment_id"))
-        return web.json_response(compile_prompt(body.get("fields", {}), refs))
+        if body.get("continuation_method")=="last_frame" and body.get("profile")=="ref2va":
+            from .image_continuation import compile_with_frame, preview_source
+            compiled=compile_with_frame(body.get("fields",{}), refs, preview_source(data,body))
+        elif body.get('continuation_method')=='video_reference':
+            from .video_continuation import compile_with_video
+            from .image_continuation import preview_source
+            compiled=compile_with_video(body.get('fields',{}),refs,preview_source(data,body))
+        else:
+            compiled=compile_prompt(body.get("fields", {}), refs)
+        return web.json_response(compiled)
     except (ValueError, OSError, KeyError) as exc: return error(exc)
 
 
@@ -195,7 +204,7 @@ async def project_preview(request):
         from .project_preview import request_project_preview
         body = await request.json()
         store = Store(projects_root(), request.match_info["project"])
-        return web.json_response(request_project_preview(store, body.get("include_drafts", False), body.get("draft_take_id"), body.get("retry", False), scene_id=body.get("scene_id")))
+        return web.json_response(request_project_preview(store, body.get("include_drafts", False), body.get("draft_take_id"), body.get("retry", False), scene_id=body.get("scene_id"), apply_decode_edge=body.get("apply_decode_edge", True)))
     except (ValueError, RuntimeError, OSError, KeyError) as exc: return error(exc)
 
 
@@ -209,10 +218,38 @@ async def project_preview_video(request):
     except (ValueError, OSError, KeyError) as exc: return error(exc)
 
 
+async def experiments(request):
+    try:
+        import asyncio
+        from .experiments import experiment_plan, create_comparison
+        body = await request.json(); store = Store(projects_root(), request.match_info["project"])
+        if body.get("preview") is True:
+            result = await asyncio.to_thread(experiment_plan, store, body.get("scene_id"), body.get("count", 4), body.get("configuration"), body.get("reuse_control", False), body.get("treatments"))
+        else:
+            from .engine import mh3_api
+            mh3_api()
+            result = await asyncio.to_thread(create_comparison, store, body.get("scene_id"), body.get("count", 4), body.get("revision"), body.get("configuration"), body.get("reuse_control", False), body.get("treatments"))
+        return web.json_response(result)
+    except (ValueError, RuntimeError, ImportError, OSError, KeyError) as exc: return error(exc)
+
+
+async def experiment_status(request):
+    try:
+        from .experiments import update_status
+        body = await request.json()
+        return web.json_response(update_status(Store(projects_root(), request.match_info["project"]), body.get("status"), body.get("message", "")))
+    except (ValueError, OSError, KeyError) as exc: return error(exc)
+
+
 async def static_asset(request):
     path = (APP / "assets" / request.match_info["name"]).resolve()
     if not path.is_relative_to(APP / "assets") or not path.is_file(): raise web.HTTPNotFound()
     return web.FileResponse(path)
+
+
+async def anti_burn_status(request):
+    from .anti_burn import availability
+    return web.json_response(availability())
 
 
 async def lora_choices(request):
@@ -248,17 +285,25 @@ async def download_export(request):
     except (ValueError,OSError,KeyError) as exc:return error(exc)
 
 
+async def capabilities(request):
+    return web.json_response({"pdd_warmup":2,"pdd_warmup_modes":["off","auto"],"pdd_warmup_protection":1,"pdd_warmup_refine":1,"image_continuation":4,"image_motion":1,"video_continuation":1})
+
+
 def register():
     global _registered
     server = PromptServer.instance
     if _registered or server is None: return
     routes = server.routes
+    routes.get("/longcaster-timeline/capabilities")(capabilities)
     routes.get("/longcaster-timeline/app")(page)
     routes.get("/longcaster-timeline/assets/{name}")(static_asset)
     routes.get("/longcaster-timeline/loras")(lora_choices)
+    routes.get("/longcaster-timeline/anti-burn")(anti_burn_status)
     routes.get("/longcaster-timeline/projects")(list_projects)
     routes.post("/longcaster-timeline/projects")(create_project)
     routes.post("/longcaster-timeline/projects/{project}/duplicate")(duplicate_project)
+    routes.post("/longcaster-timeline/projects/{project}/experiments")(experiments)
+    routes.post("/longcaster-timeline/projects/{project}/experiment-status")(experiment_status)
     routes.post("/longcaster-timeline/projects/{project}/delete")(delete_project)
     routes.post("/longcaster-timeline/projects/{project}/export")(export_project)
     routes.get("/longcaster-timeline/projects/{project}/exports/{key}")(download_export)

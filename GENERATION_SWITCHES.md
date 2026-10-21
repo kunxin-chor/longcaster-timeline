@@ -6,12 +6,12 @@ Load `example_workflows/longcaster_timeline_ref2va_dual_switch.json` in ComfyUI,
 
 The generation panel discovers connected, supported switches and renders one dropdown per switch. This example has:
 
-| Switch | A | B | C |
-| --- | --- | --- | --- |
-| Model source | Full native REF2VA | FL2VA + reference patch (experimental) | - |
-| Acceleration | HyperFlow, 8 steps | PDD ACC, 8 steps | Standard REF2VA, 20 steps (no acceleration) |
+| Switch | A | B | C | D |
+| --- | --- | --- | --- | --- |
+| Model source | Full native REF2VA | FL2VA + reference patch (experimental) | - | - |
+| Acceleration | HyperFlow, 8 steps | PDD ACC, 8 steps | Standard REF2VA, 20 steps (no acceleration) | SMD REF2VA, 8 steps |
 
-The lazy MODEL switch feeds both acceleration branches. Each acceleration branch bundles its matching MODEL, SAMPLER and SIGMAS in a Configuration node. A Configuration Switch selects the complete bundle. Comfy Kitchen runs after the acceleration patch on each branch. Only the chosen branch is submitted; unused model loaders, adapters and schedules are pruned from the queued prompt.
+The lazy MODEL switch feeds the acceleration branches. Each acceleration branch bundles its matching MODEL, SAMPLER and SIGMAS in a Configuration node. A Configuration Switch selects the complete bundle. Comfy Kitchen runs after the acceleration patch on each branch. Only the chosen branch is submitted; unused model loaders, adapters and schedules are pruned from the queued prompt.
 
 Select the real installed filenames in the loaders and adapter nodes. No weights or node packs are installed automatically. HyperFlow uses the existing full node-build adapter, its native SIGMAS and Euler; its SIGMAS must not be shifted again. PDD uses its own SIGMAS with video/audio shifts 12/3 and Euler. Standard REF2VA uses res_multistep, a simple 20-step scheduler at denoise 1.0, the same 12/3 shifts and Comfy Kitchen, with neither HyperFlow nor PDD in its selected ancestry.
 
@@ -56,3 +56,26 @@ Native implementation: https://github.com/Comfy-Org/ComfyUI/blob/master/comfy_ex
 ## Generate with the current or a random seed
 
 The main Generate button uses the Seed field as entered. The adjacent **Random seed** action chooses a fresh nonnegative, JavaScript-safe 53-bit seed and immediately generates the same target segment with otherwise identical settings. It updates the visible Seed field and saves the exact value in the job/take snapshot, so the next normal generation can reuse it. Both actions share configuration, prompt, duration and continuation validation, and are unavailable while generation is active.
+
+
+## SMD REF2VA - added 2026-10-20
+
+The dual-switch workflow adds **Acceleration D: SMD REF2VA - 8 steps** while preserving the original paths and default selection. Reload the updated workflow, then choose this configuration in Timeline. Prefer Model source A (native REF2VA); source B remains experimental with SMD.
+
+Place the native ComfyUI-converted **SMD-MiniMax-H3-Ref2VA-8step.safetensors** in `models/loras` or your configured LoRA directory. It is an adapter, not a complete diffusion model. This branch applies it after SigmaShift 12/3 at strength 1.0, then Comfy Kitchen, Euler and the author's ManualSigmas. Timeline already uses BasicGuider (no CFG). The selected SMD branch contains neither PDD nor HyperFlow. Do not add Lightning/Turbo adapters or apply SMD again through project/scene LoRAs.
+
+The eight raw interval widths are `[1,1,1,1,1,1,1,0.5]`, divided by 7.5 before video shift 12. The exact SIGMAS are:
+
+```
+1, 0.9873417721518988, 0.9705882352941178, 0.9473684210526315,
+0.9130434782608696, 0.8571428571428573, 0.7500000000000002,
+0.4615384615384622, 0
+```
+
+Native H3 handles audio shift 3. A generic eight-step simple/PDD schedule is not equivalent. The file must be the ComfyUI conversion, not a renamed Diffusers adapter.
+
+Recipe revision: `fc5f640d0db854cccdcad3b1cdb375458bfaaef4` in zjwfufu/SMD-MiniMax-H3-Ref2VA-8step-ComfyUI. Published adapter SHA256: `89cc678b60b2e85f10cdf69739900d948475fa52512b165b635b8b65aa364a8b`.
+
+Verified JSON/link/socket consistency, unchanged old configurations/default, selected ancestry and frozen switch selections. No model download or GPU generation was performed. SMD continuation/audio quality remains untested. No additional custom nodes are introduced.
+
+Source: https://huggingface.co/zjwfufu/SMD-MiniMax-H3-Ref2VA-8step-ComfyUI

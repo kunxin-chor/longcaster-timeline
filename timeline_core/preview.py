@@ -55,7 +55,17 @@ def build_preview(store, take, video_vae, audio_vae, api, on_stage=None):
             import os
             os.replace(temp, destination)
         finally: temp.unlink(missing_ok=True)
+    from .seam_diagnostics import measure_seam
+    try:
+        diagnostics = measure_seam(store, take, pixels, waveform, rate, executable)
+    except Exception as exc:
+        diagnostics = {"status": "unavailable", "error": str(exc), "quality_verdict": "not_measured"}
+    atomic_json(store.asset(f"takes/{take['id']}/continuation_evidence.json"), {
+        "source": take["snapshot"].get("source"), "plan": take["plan"],
+        "context_check": take["receipt"].get("continuation_check"),
+        "decode_edge": take["snapshot"].get("decode_edge", {"policy":"off","frames":0}),
+        "sampling_seconds": take["receipt"].get("sampling_seconds"), "seam": diagnostics})
     atomic_json(store.asset(f"takes/{take['id']}/preview.json"), {"status": "ready", "source_sha256": take["latent_sha256"],
         "path": f"takes/{take['id']}/preview.mp4", "raw_path": f"takes/{take['id']}/original.mp4", "context_trimmed": True,
         "delivery": take["plan"]["delivery"], "fps": 24, "audio_sample_rate": rate,
-        "audio_start_sample": (take["plan"]["context_frames"] * rate + 12) // 24})
+        "continuation_diagnostics": diagnostics, "audio_start_sample": (take["plan"]["context_frames"] * rate + 12) // 24})

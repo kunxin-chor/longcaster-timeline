@@ -182,6 +182,45 @@ class StoreTests(unittest.TestCase):
         self.command("reference", reference_id=state["references"][0]["id"], token_name="new_hero")
         self.assertEqual(self.store.load()["jobs"][extension["id"]]["snapshot"], original)
 
+    def test_decode_edge_policy_is_frozen_without_changing_masks_or_prompt_clock(self):
+        _, job = self.queue(decode_edge_frames=4)
+        self.assertEqual(job["snapshot"]["decode_edge"]["frames"], 0)
+        take = self.finish(job); self.ready_preview(take); self.command("finalize", take_id=take["id"])
+        with self.assertRaisesRegex(ValueError, "Decode-edge frames"):
+            self.queue(mode="extend", source_take_id=take["id"], context=39, decode_edge_frames=True)
+        _, extension = self.queue(mode="extend", source_take_id=take["id"], context=39, decode_edge_frames=4)
+        snap = extension["snapshot"]
+        self.assertEqual(snap["decode_edge"]["frames"], 4)
+        self.assertEqual(snap["plan"]["mask_profile"], "hard_av_v1")
+        self.assertEqual(snap["prompt_timing"], "authored")
+        self.assertEqual(snap["plan"]["new_frames"], snap["plan"]["sampled_frames"] - 39)
+        self.assertEqual(self.store.load()["jobs"][extension["id"]]["snapshot"], snap)
+
+    def test_acceptance_report_does_not_claim_legacy_takes_have_runtime_evidence(self):
+        from timeline_core.acceptance import report
+        _, job = self.queue(); take = self.finish(job)
+        self.ready_preview(take); self.command("finalize", take_id=take["id"])
+        _, extension = self.queue(mode="extend", source_take_id=take["id"], context=39)
+        child = self.finish(extension)
+        evidence = report(self.store)
+        self.assertEqual(evidence["summary"], {"takes":2,"continuations":1,"verified_contexts":0,"measured_seams":0})
+        self.assertIsNone(evidence["takes"][1]["context_check"])
+        self.assertEqual(evidence["finalized_timeline"][0]["video_frame_range"], [0,124])
+        self.assertEqual(evidence["finalized_timeline"][0]["planned_review_pcm_range_48000"], [0,248000])
+        self.assertEqual(evidence["takes"][1]["source_sha256"], take["latent_sha256"])
+
+    def test_failed_context_evidence_retains_take_for_review_but_blocks_finalization(self):
+        _, job = self.queue(); take = self.finish(job); self.ready_preview(take)
+        with self.store.locked():
+            state = self.store._read()
+            state["takes"][take["id"]]["receipt"]["continuation_check"] = {"passed":False}
+            self.store._commit(state)
+        with self.assertRaisesRegex(ValueError, "saved for review"):
+            self.command("finalize", take_id=take["id"])
+        self.assertTrue(self.store.asset(take["latent_path"]).is_file())
+        self.assertEqual(self.store.preview(take["id"])["status"], "ready")
+        self.assertIsNone(self.store.load()["scenes"][0]["segments"][0]["active_output"])
+
     def test_source_must_be_explicit_finalized_take_and_geometry_matches(self):
         _, first = self.queue(); a = self.finish(first)
         _, second = self.queue(segment_id=a["segment_id"]); b = self.finish(second)
@@ -192,6 +231,77 @@ class StoreTests(unittest.TestCase):
             self.queue(mode="extend", source_take_id=a["id"], width=800)
         _, extension = self.queue(mode="extend", source_take_id=a["id"])
         self.assertEqual(extension["snapshot"]["source"]["id"], a["id"])
+
+    def image_source(self):
+        _, job = self.queue(); take = self.finish(job); self.ready_preview(take)
+        self.command("finalize", take_id=take["id"])
+        with self.store.locked():
+            state=self.store._read();state["references"]=[];self.store._commit(state)
+        return take
+
+    def test_image_restart_crosses_profile_without_motion_overlap_and_regenerates_from_original_parent(self):
+        parent=self.image_source()
+        settings=dict(mode="extend",profile="fl2va",continuation_method="last_frame",source_take_id=parent["id"],
+                      fields={"detailed_description":"[Shot 1] A person continues walking."},context=141)
+        _,job=self.queue(**settings);snapshot=job["snapshot"]
+        self.assertEqual(snapshot["continuation_method"],"last_frame")
+        self.assertEqual(snapshot["source"]["id"],parent["id"])
+        self.assertEqual(snapshot["plan"]["context_frames"],0)
+        self.assertEqual(snapshot["plan"]["delivery"],{"start":0,"end":124})
+        self.assertEqual(snapshot["plan"]["mask_profile"],"first_frame_keyframe_v1")
+        child=self.finish(job);self.ready_preview(child);self.command("finalize",take_id=child["id"])
+        _,replacement=self.queue(**{**settings,"mode":"regenerate","segment_id":child["segment_id"],"source_take_id":child["id"]})
+        self.assertEqual(replacement["snapshot"]["source"]["id"],parent["id"])
+        self.assertEqual(replacement["snapshot"]["plan"]["context_frames"],0)
+
+    def test_image_restart_rejects_incompatible_model_controls_and_unknown_method(self):
+        parent=self.image_source()
+        settings=dict(mode="extend",profile="fl2va",continuation_method="last_frame",source_take_id=parent["id"],
+                      fields={"detailed_description":"[Shot 1] A person walks."})
+        for extra in ({"refine":{"enabled":True}}, {"decode_edge_frames":1}, {"continuation_protection":"color_stable"}):
+            with self.subTest(extra=extra),self.assertRaises(ValueError):self.queue(**{**settings,**extra})
+        with self.assertRaisesRegex(ValueError,"Choose latent, last-frame or video-reference"):
+            self.queue(**{**settings,"continuation_method":"video"})
+        with self.assertRaisesRegex(ValueError,"source generation profile"):
+            self.queue(**{**settings,"continuation_method":"latent"})
+
+    def test_image_restart_rejects_enabled_reference_assets(self):
+        _,job=self.queue();parent=self.finish(job);self.ready_preview(parent);self.command("finalize",take_id=parent["id"])
+        with self.assertRaisesRegex(ValueError,"Exclude reference assets"):
+            self.queue(mode="extend",profile="fl2va",continuation_method="last_frame",source_take_id=parent["id"],fields={"detailed_description":"Walking."})
+
+    def test_ref2va_image_restart_retains_named_reference_prompt_and_controls(self):
+        _,job=self.queue();parent=self.finish(job);self.ready_preview(parent);self.command("finalize",take_id=parent["id"])
+        _,child=self.queue(mode="extend",profile="ref2va",continuation_method="last_frame",source_take_id=parent["id"])
+        snapshot=child["snapshot"]
+        self.assertEqual(snapshot["profile"],"ref2va")
+        self.assertEqual(snapshot["plan"]["context_frames"],0)
+        self.assertEqual(snapshot["source"]["id"],parent["id"])
+        self.assertEqual(snapshot["compiled"]["authored_fields"],parent["snapshot"]["compiled"]["authored_fields"])
+        self.assertEqual(snapshot["compiled"]["images"][:-1],parent["snapshot"]["compiled"]["images"])
+        self.assertEqual(snapshot["compiled"]["images"][0]["native_label"],"<Picture 1>")
+        self.assertEqual(snapshot["compiled"]["images"][-1]["native_label"],"<Picture 2>")
+        self.assertEqual(snapshot["compiled"]["images"][-1]["source_archive_sha256"],parent["latent_sha256"])
+        self.assertIn("<Picture 2> as its first frame",snapshot["compiled"]["prompt"])
+        child_take=self.finish(child);self.ready_preview(child_take);self.command("finalize",take_id=child_take["id"])
+        _,replacement=self.queue(mode="regenerate",profile="ref2va",continuation_method="last_frame",segment_id=child_take["segment_id"])
+        self.assertEqual(replacement["snapshot"]["compiled"],snapshot["compiled"])
+
+    def test_ref2va_last_frame_can_be_the_only_picture_reference(self):
+        parent=self.image_source()
+        _,job=self.queue(mode="extend",profile="ref2va",continuation_method="last_frame",source_take_id=parent["id"],fields={"detailed_description":"Continue walking."})
+        self.assertEqual(job["snapshot"]["compiled"]["images"][0]["native_label"],"<Picture 1>")
+
+    def test_last_frame_short_motion_plan_retains_picture_prompt_and_no_audio_prefix(self):
+        parent=self.image_source()
+        _,job=self.queue(mode="extend",profile="ref2va",continuation_method="last_frame",image_motion_frames=22,source_take_id=parent["id"],fields={"detailed_description":"Continue walking."},pdd_warmup="auto")
+        snapshot=job["snapshot"]
+        self.assertEqual(snapshot["plan"]["context_frames"],22)
+        self.assertEqual(snapshot["plan"]["audio"]["context_steps"],0)
+        self.assertEqual(snapshot["plan"]["mask_profile"],"picture_short_video_context_v1")
+        self.assertEqual(snapshot["image_motion_frames"],22)
+        self.assertEqual(snapshot["pdd_warmup"]["mode"],"auto")
+        self.assertIn("keyframe completion",snapshot["compiled"]["prompt"])
 
     def test_claim_idempotence_and_snapshot_tampering(self):
         _, job = self.queue(); self.store.claim(job["id"])
@@ -308,3 +418,17 @@ class StoreTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+class FastH3ProvenanceTests(unittest.TestCase):
+    def test_fast_h3_loader_checkpoint_is_recorded_through_selected_configuration(self):
+        from timeline_core.engine import model_checkpoint_sources
+        graph={
+            'execute':{'class_type':'LongCasterTimelineExecute','inputs':{'configuration':['switch',0]}},
+            'switch':{'class_type':'LongCasterTimelineConfigurationSwitch','inputs':{'select':'A','source_a':['config',0],'source_b':['unused',0]}},
+            'config':{'class_type':'LongCasterTimelineConfiguration','inputs':{'model':['sampling',6],'profile':'fl2va'}},
+            'sampling':{'class_type':'MMH3H3SamplingPreset','inputs':{'model':['loader',0]}},
+            'loader':{'class_type':'MMH3FastH3V2Model','inputs':{'checkpoint':'fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors'}},
+            'unused':{'class_type':'UNETLoader','inputs':{'unet_name':'unselected_ref2va.safetensors'}},
+        }
+        self.assertEqual(model_checkpoint_sources(graph),[{'checkpoint':'fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors','ref_patch_node':None}])

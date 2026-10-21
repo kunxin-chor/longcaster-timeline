@@ -727,3 +727,27 @@ The 2026-10-17 user feedback makes Project > Scene > Segment the initial creatio
 ## 23. MH3 dependency compatibility policy
 
 The 2026-10-17 user preference is to use the latest compatible upstream MH3 version. The reviewed revision is a research/provenance baseline, not an exact-hash runtime gate. Validate adapter API v1, H3 latent contract v2, required callables and their keyword signatures before execution; preserve source-resource integrity and native AV-mask checks. Record detected dependency revision and validation metadata in each execution receipt. Compatible ZIP installs may have unknown Git provenance. Preserve frozen historical take metadata. Updating an installed dependency remains explicit and requires a ComfyUI restart; the application does not perform automatic background upgrades or sibling-directory discovery. See IMPLEMENTATION_NOTES.md for the source comparison and tests.
+
+
+## Continuation acceptance implementation update - 2026-10-18
+
+See [Continuation acceptance and seam frame correction](CONTINUATION_ACCEPTANCE.md)
+for the implemented experimental decoded ownership policy, hard-mask runtime
+checks, saved seam diagnostics, review-only baseline comparison and native test
+protocol. Default correction remains Off. This is decoder boundary control,
+not the legacy fractional-mask treatment or a validated solution for cumulative
+appearance drift. Protected AV context is checked after sampling, recording exact
+comparison separately from the documented FP32 round-trip tolerance. Scene
+preview and export share the saved video ownership plan; audio timing and raw
+artifacts remain unchanged. Native 5-10 segment H3 quality/AV acceptance is still
+pending and must not be inferred from fixture-media/browser tests.
+
+
+## Automatic drift comparison and optional H3 refinement - 2026-10-18
+
+See [DRIFT_EXPERIMENTS.md](DRIFT_EXPERIMENTS.md). Browser orchestration creates isolated control/refine productions from the same explicitly selected first take, freezes the chosen generation configuration, waits for idle rest, and accepts only successfully previewed/context-verified continuations. Standard and accelerated paths are selectable. H3 Refine is opt-in and continuation-only: pinned MIT schedule/blend helpers, actual-schedule Euler tail, hard protected video head and frozen audio. Refined takes retain the original sampled archive and use an explicitly hashed derived archive for preview and subsequent context. Native GPU quality/AV acceptance remains pending.
+
+
+## Drift Control / Color Stable port - 2026-10-18
+
+Current GPL-3.0 Context Loop modules are pinned and attributed in timeline_core/vendor/context_loop. Optional continuation policies use the selected MODEL and actual external SIGMAS, a 39-frame disposable prefix, unchanged audio masking, and a frozen first-take colour anchor. Source archives remain immutable. Colour treatments intentionally change the prepared prefix; final context checks identify that treated reference instead of claiming exact equality to the untreated source. Sampling hook evidence is required for auto acceptance. Separate control, Drift Control, Color Stable only and combined comparison arms are available, retaining optional control reuse. Native PDD quality evidence remains pending. See [DRIFT_EXPERIMENTS.md](DRIFT_EXPERIMENTS.md).

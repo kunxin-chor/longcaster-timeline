@@ -15,6 +15,8 @@ const clock=(seconds:number)=>{const frame=Math.max(0,Math.round(seconds*24));re
 
 export function ProjectPreview({sceneId,project,draftTakeId,videoRef,seek,onPosition,onActivate}:Props){
   const [includeDrafts,setIncludeDrafts]=useState(()=>localStorage.getItem("longcaster-preview-drafts")!=="false");
+  const [applyDecodeEdge,setApplyDecodeEdge]=useState(true);
+  const hasCorrection=Object.values(project?.takes||{}).some(take=>take.scene_id===sceneId&&!!take.snapshot.decode_edge?.frames);
   const [movie,setMovie]=useState<Movie|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState("");
   const [position,setPosition]=useState(0),[playing,setPlaying]=useState(false),[muted,setMuted]=useState(false),[retry,setRetry]=useState(0);
   const appliedSeek=useRef("");
@@ -29,14 +31,14 @@ export function ProjectPreview({sceneId,project,draftTakeId,videoRef,seek,onPosi
   function requestSeek(seconds:number){queue.current?.seek(seconds);}
 
   // Poll responses recreate objects; encode only changes that can affect review inputs.
-  const inputs=JSON.stringify([project?.id,sceneId,includeDrafts,includeDrafts?draftTakeId:null,project?.scenes.map(scene=>[scene.id,scene.name,scene.segments.map(segment=>[
+  const inputs=JSON.stringify([project?.id,sceneId,includeDrafts,applyDecodeEdge,includeDrafts?draftTakeId:null,project?.scenes.map(scene=>[scene.id,scene.name,scene.segments.map(segment=>[
     segment.id,segment.name,segment.active_output?.take_id,segment.takes.map(id=>[id,project.takes[id]?.preview])])])]);
   useEffect(()=>{
     if(!project)return;let current=true;let timer:ReturnType<typeof setTimeout>|undefined;
     videoRef.current?.pause();setLoading(true);setError("");
     const poll=async(first=false)=>{
       try{
-        const next:Movie=await request(`/projects/${project.id}/preview`,{scene_id:sceneId,include_drafts:includeDrafts,draft_take_id:includeDrafts?draftTakeId:undefined,retry:first&&retry>0});
+        const next:Movie=await request(`/projects/${project.id}/preview`,{scene_id:sceneId,apply_decode_edge:applyDecodeEdge,include_drafts:includeDrafts,draft_take_id:includeDrafts?draftTakeId:undefined,retry:first&&retry>0});
         if(!current)return;setMovie(next);setLoading(next.status==="building");
         if(next.status==="failed")setError(next.error||"Scene preview could not be built.");
         if(next.status==="building")timer=setTimeout(()=>void poll(),900);
@@ -81,7 +83,7 @@ export function ProjectPreview({sceneId,project,draftTakeId,videoRef,seek,onPosi
     if(event.key==="ArrowLeft"||event.key==="ArrowRight"){event.preventDefault();seekTo(position+(event.key==="ArrowLeft"?-1:1)/24);}
   }}>
     <div className="project-preview-heading"><Film size={15}/><strong>Scene preview</strong><span className="badge">{movie?.draft_count?`${movie.draft_count} draft${movie.draft_count===1?"":"s"}`:"Finalized"}</span></div>
-    <div className="preview-options"><label><input aria-label="Include draft takes" type="checkbox" checked={includeDrafts} onChange={event=>{setIncludeDrafts(event.target.checked);localStorage.setItem("longcaster-preview-drafts",String(event.target.checked));}}/>Include draft takes</label><span>{project?.scenes.find(scene=>scene.id===sceneId)?.name||"Current scene"}</span></div>
+    <div className="preview-options"><label><input aria-label="Include draft takes" type="checkbox" checked={includeDrafts} onChange={event=>{setIncludeDrafts(event.target.checked);localStorage.setItem("longcaster-preview-drafts",String(event.target.checked));}}/>Include draft takes</label>{hasCorrection&&<label title="Review comparison only. Export follows each take's saved correction policy."><input aria-label="Use saved seam frame correction" type="checkbox" checked={applyDecodeEdge} onChange={event=>setApplyDecodeEdge(event.target.checked)}/>Seam frame correction</label>}<span>{project?.scenes.find(scene=>scene.id===sceneId)?.name||"Current scene"}</span></div>
     <div className="project-preview-screen">{movie?.status==="ready"&&!error?<video key={movie.key} ref={videoRef} src={`${BASE}/projects/${project!.id}/preview/${movie.key}`} preload="auto" playsInline muted={muted}
       onLoadedMetadata={applyExternalSeek} onPlay={()=>{onActivate();setPlaying(true);}} onPause={()=>setPlaying(false)} onEnded={()=>setPlaying(false)}
       onError={()=>{setError("The scene preview could not be played. Retry its build or check the saved preview files.");setPlaying(false);}}/>:

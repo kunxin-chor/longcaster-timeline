@@ -16,8 +16,9 @@ _lock = threading.Lock()
 KEY = re.compile(r"[0-9a-f]{64}\Z")
 
 
-def plan_project_preview(store, include_drafts=False, draft_take_id=None, scene_id=None):
+def plan_project_preview(store, include_drafts=False, draft_take_id=None, scene_id=None, apply_decode_edge=True):
     if not isinstance(include_drafts, bool): raise ValueError("Include drafts must be boolean.")
+    if not isinstance(apply_decode_edge, bool): raise ValueError("Apply decode edge must be boolean.")
     data = store.load()
     if scene_id is not None and not any(scene["id"]==scene_id for scene in data["scenes"]): raise ValueError("Preview scene not found.")
     candidate = data["takes"].get(draft_take_id) if draft_take_id and include_drafts else None
@@ -55,7 +56,9 @@ def plan_project_preview(store, include_drafts=False, draft_take_id=None, scene_
                 "frames": frames, "source_path": preview["path"], "source_size": stat.st_size, "source_mtime_ns": stat.st_mtime_ns,
                 "latent_sha256": take["latent_sha256"], "width": take["width"], "height": take["height"]})
             project_frame += frames; scene_frame += frames
-    plan = {"version": 2, "encoding": "scrub_gop12_v1", "project_id": data["id"], "fps": 24, "audio_sample_rate": 48000, "frames": project_frame,
+    from .continuation_evidence import apply_ownership
+    entries = apply_ownership(store, data, entries) if apply_decode_edge else entries
+    plan = {"version": 3, "encoding": "scrub_gop12_v1", "project_id": data["id"], "fps": 24, "audio_sample_rate": 48000, "frames": project_frame,
         "seconds": project_frame / 24, "width": entries[0]["width"] if entries else 0, "height": entries[0]["height"] if entries else 0,
         "draft_count": sum(entry["draft"] for entry in entries), "entries": entries}
     # Display-only names do not require encoding a new movie.
@@ -80,14 +83,31 @@ def render_project_preview(store, plan):
     directory.mkdir(parents=True, exist_ok=True)
     temporary = directory / f".{uid()}.mp4"
     inputs = []; filters = []; pads = []
+    input_index = 0
+    def normalize(input_id, start, end, label):
+        filters.append(f"[{input_id}:v:0]fps=24,scale={plan['width']}:{plan['height']}:force_original_aspect_ratio=decrease,"
+            f"pad={plan['width']}:{plan['height']}:(ow-iw)/2:(oh-ih)/2,setsar=1,trim=start_frame={start}:end_frame={end},setpts=N/(24*TB)[{label}]")
     for index, entry in enumerate(plan["entries"]):
         source = store.asset(entry["source_path"])
+        own_input = input_index; input_index += 1
         inputs.extend(["-i", str(source)])
-        # Normalize review media only; original video/audio/latents remain unchanged.
-        filters.append(f"[{index}:v:0]fps=24,scale={plan['width']}:{plan['height']}:force_original_aspect_ratio=decrease,"
-            f"pad={plan['width']}:{plan['height']}:(ow-iw)/2:(oh-ih)/2,setsar=1,trim=end_frame={entry['frames']},setpts=N/(24*TB)[v{index}]")
-        samples = entry["frames"] * 2000  # 48000 / 24, exact for every video frame.
-        filters.append(f"[{index}:a:0]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=end_sample={samples},asetpts=N/SR/TB[a{index}]")
+        borrowed = entry.get("borrowed_video_tail")
+        # Audio keeps its original ownership and exact sample count. Video alone
+        # may borrow preserved context from the next take's FULL decode.
+        if borrowed:
+            count = borrowed["frames"]
+            inputs.extend(["-i", str(store.asset(borrowed["source_path"]))])
+            borrow_input = input_index; input_index += 1
+            normalize(borrow_input, borrowed["start_frame"], borrowed["end_frame"], f"borrow{index}")
+            if entry["frames"] > count:
+                normalize(own_input, 0, entry["frames"] - count, f"own{index}")
+                filters.append(f"[own{index}][borrow{index}]concat=n=2:v=1:a=0[v{index}]")
+            else:
+                filters.append(f"[borrow{index}]null[v{index}]")
+        else:
+            normalize(own_input, 0, entry["frames"], f"v{index}")
+        samples = entry["frames"] * 2000
+        filters.append(f"[{own_input}:a:0]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=end_sample={samples},asetpts=N/SR/TB[a{index}]")
         pads.append(f"[v{index}][a{index}]")
     filters.append("".join(pads) + f"concat=n={len(pads)}:v=1:a=1[v][a]")
     command = [ffmpeg(), "-y", "-nostdin", "-hide_banner", "-loglevel", "error", *inputs,
@@ -102,9 +122,11 @@ def render_project_preview(store, plan):
         if not frames or int(frames[-1]) != plan["frames"]:
             raise RuntimeError("A source preview was shorter than its saved frame plan. Rebuild that take's preview.")
         for entry in plan["entries"]:
-            stat = store.asset(entry["source_path"]).stat()
-            if (stat.st_size, stat.st_mtime_ns) != (entry["source_size"], entry["source_mtime_ns"]):
-                raise RuntimeError("A source preview changed during assembly. Rebuild the project preview.")
+            for resource in (entry, entry.get("borrowed_video_tail")):
+                if resource is None: continue
+                stat = store.asset(resource["source_path"]).stat()
+                if (stat.st_size, stat.st_mtime_ns) != (resource["source_size"], resource["source_mtime_ns"]):
+                    raise RuntimeError("A source preview changed during assembly. Rebuild the project preview.")
         destination = directory / "preview.mp4"
         os.replace(temporary, destination)
         record = {**deepcopy(plan), "status": "ready", "path": f"project_previews/{plan['key']}/preview.mp4",
@@ -115,9 +137,9 @@ def render_project_preview(store, plan):
         temporary.unlink(missing_ok=True)
 
 
-def request_project_preview(store, include_drafts=False, draft_take_id=None, retry=False, scene_id=None):
+def request_project_preview(store, include_drafts=False, draft_take_id=None, retry=False, scene_id=None, apply_decode_edge=True):
     if not isinstance(retry, bool): raise ValueError("Retry must be boolean.")
-    plan = plan_project_preview(store, include_drafts, draft_take_id, scene_id)
+    plan = plan_project_preview(store, include_drafts, draft_take_id, scene_id, apply_decode_edge)
     if not plan["entries"]: return {**plan, "status": "empty", "message": "Generate a take preview to review the project."}
     cached = cached_preview(store, plan["key"])
     if cached:

@@ -23,7 +23,7 @@ def duplicate_without_generations(source, name):
     for field in ('fields','prompt_fields','ref_image_size'):
         if field in original:result[field]=deepcopy(original[field])
     for scene in original['scenes']:
-        copied={**{k:deepcopy(scene[k]) for k in ('name','fields','prompt_fields') if k in scene},
+        copied={**{k:deepcopy(scene[k]) for k in ('name','fields','prompt_fields','anti_burn') if k in scene},
             'id':scene_ids[scene['id']],'segments':[]}
         for index,segment in enumerate(scene['segments']):
             selected=original['takes'].get((segment.get('active_output') or {}).get('take_id'))
