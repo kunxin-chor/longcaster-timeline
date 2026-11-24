@@ -101,7 +101,7 @@ def require_tail(scene, segment):
     later=scene["segments"][index+1:]
     # Empty copied prompt placeholders are not generated footage downstream.
     if index<0 or any(not item.get("planned") or item.get("takes") or item.get("active_output") for item in later):
-        raise ValueError("Only the tail segment of a scene can be replaced or generated. Earlier segments are read-only.")
+        raise ValueError("Only the tail of generated footage can be replaced or generated. Later segments must be empty plans.")
 
 
 class Store:
@@ -317,6 +317,22 @@ class Store:
                 segment = blank_segment(scene["id"], len(scene["segments"]) + 1, payload.get("draft"))
                 segment["working_draft"].update(project_resolution(state))
                 scene["segments"].append(segment)
+                state["last_created_segment_id"] = segment["id"]
+            elif action == "plan_segment":
+                scene = next((s for s in state["scenes"] if s["id"] == payload.get("scene_id")), None)
+                if not scene: raise ValueError("Scene not found.")
+                if any(j["scene_id"] == scene["id"] and active_job(j) for j in state["jobs"].values()):
+                    raise Conflict("Finish or cancel scene generation before planning another segment.")
+                index = next((i for i, item in enumerate(scene["segments"]) if item["id"] == payload.get("after_segment_id")), -1)
+                if index < 0: raise ValueError("Choose a segment in this scene first.")
+                if any(item.get("takes") or item.get("active_output") or not item.get("planned") for item in scene["segments"][index+1:]):
+                    raise ValueError("Cannot insert a plan before generated footage.")
+                segment = blank_segment(scene["id"], index + 2)
+                segment["planned"] = True
+                segment["working_draft"].update(project_resolution(state))
+                scene["segments"].insert(index + 1, segment)
+                for number, item in enumerate(scene["segments"][index+2:], index + 3):
+                    item["name"] = f"Segment {number:02d}"
                 state["last_created_segment_id"] = segment["id"]
             elif action == "reference":
                 reference = next((r for r in state["references"] if r["id"] == payload.get("reference_id")), None)

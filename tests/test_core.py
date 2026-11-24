@@ -378,6 +378,25 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(child["name"], "Segment 02")
         self.assertEqual(child["working_draft"]["source_take_id"],a["id"])
 
+    def test_plans_can_follow_a_draft_without_blocking_replacement(self):
+        first=self.store.load()["scenes"][0]["segments"][0]
+        state=self.command("plan_segment",scene_id=self.scene,after_segment_id=first["id"])
+        planned=state["scenes"][0]["segments"][1]
+        self.assertTrue(planned["planned"])
+        self.assertEqual(planned["name"],"Segment 02")
+        state=self.command("plan_segment",scene_id=self.scene,after_segment_id=first["id"])
+        self.assertEqual([item["name"] for item in state["scenes"][0]["segments"]],
+                         ["Segment 01","Segment 02","Segment 03"])
+        _,job=self.queue(segment_id=first["id"])
+        first_take=self.finish(job);self.ready_preview(first_take)
+        _,retry=self.queue(segment_id=first["id"],seed=4)
+        self.assertEqual(retry["snapshot"]["operation"],"new")
+        retry_take=self.finish(retry);self.ready_preview(retry_take)
+        self.command("finalize",take_id=retry_take["id"])
+        _,replacement=self.queue(mode="regenerate",segment_id=first["id"],seed=5)
+        self.assertEqual(replacement["snapshot"]["operation"],"regenerate")
+        self.assertEqual(len(self.store.load()["scenes"][0]["segments"]),3)
+
     def test_replace_first_segment_stays_independent_and_keeps_original(self):
         _,job=self.queue();a=self.finalized(job)
         _,replacement=self.queue(mode="regenerate",segment_id=a["segment_id"],source_take_id=a["id"],seed=9)

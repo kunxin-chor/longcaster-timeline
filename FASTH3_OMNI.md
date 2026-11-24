@@ -73,9 +73,10 @@ seconds before each generation. Stop on an error or a ten-minute generation
 limit; no automatic retry. Three continuations assess the requested case, not
 long-chain reliability or seamless audio universally.
 
-No workflow files were inspected or edited for this integration. The test uses
-an API execution graph constructed from saved take provenance and the native
-configuration node.
+The acceptance runs used direct API execution graphs. The dual-switch example now
+provides **Acceleration E: FastH3 Omni - plain 8 steps**, using the same loader,
+sampler and sigmas. This independent path bypasses the Model source selection
+and the other accelerator/attention branches. Reload the example to select it.
 
 ## Sources
 

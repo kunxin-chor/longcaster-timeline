@@ -1,6 +1,6 @@
 {
-  "last_node_id": 48,
-  "last_link_id": 32,
+  "last_node_id": 50,
+  "last_link_id": 36,
   "nodes": [
     {
       "id": 1,
@@ -844,7 +844,7 @@
         {
           "name": "source_e",
           "type": "LONGCASTER_CONFIGURATION",
-          "link": null
+          "link": 36
         }
       ],
       "outputs": [
@@ -954,7 +954,7 @@
       },
       "title": "Start here - generate from the Timeline app",
       "widgets_values": [
-        "DUAL SWITCH REF2VA TEST WORKFLOW\n\nIn LongCaster: Generation settings shows Model source and Acceleration. Production settings can save defaults for this workflow.\n\nModel A: full native REF2VA checkpoint. Model B: FL2VA plus MiniMaxH3RefPatchLoader, an EXPERIMENTAL approximation; not native REF2VA. Requires ComfyUI-MiniMaxH3_Ref-Patch and minimax_h3_ref_patch.safetensors in models/model_patches. Select actual installed checkpoint filenames in both loaders. No files are downloaded automatically.\n\nAcceleration A: HyperFlow 8-step native SIGMAS with Euler, no extra sigma shift. Requires the full node-build HyperFlow adapter. Acceleration B: PDD ACC 8-step native SIGMAS with Euler, video/audio shifts 12/3. Acceleration C: Standard REF2VA without an acceleration adapter, 20 steps, res_multistep sampler, simple scheduler, video/audio shifts 12/3. Acceleration D: SMD REF2VA 8-step LoRA at strength 1.0, Euler, BasicGuider/no CFG, shifts 12/3 and its exact ManualSigmas (final raw interval x0.5). Uses the selected unaccelerated source; no PDD or HyperFlow adapter in this branch. Prefer Model source A (native REF2VA); B remains experimental. Comfy Kitchen is used on all four paths.\n\nOnly the selected source and acceleration branch are queued. Both choices are frozen in each take. Model/patch combinations require GPU testing; selecting a compatible socket does not prove output quality.\n\nMissing node packs/files, invalid switch selections and incompatible socket definitions are reported in the generation panel and block generation. Change defaults in Production after replacing a workflow or changing switch identities. Keep the original ComfyUI tab open.\n\nReference patch source: https://github.com/lihaoyun6/ComfyUI-MiniMaxH3_Ref-Patch\nHyperFlow: existing authorized ComfyUI-HyperFlow-H3 installation. No prompt skips, drift changes or automatic last-frame references.\n\nSMD requires SMD-MiniMax-H3-Ref2VA-8step.safetensors in models/loras (the native ComfyUI conversion, not the Diffusers adapter). No extra Lightning/Turbo adapter. Preserve the supplied ManualSigmas; a generic 8-step scheduler does not reproduce SMD. Existing switch selections/defaults are unchanged. No GPU acceptance claimed.\nSMD recipe: https://huggingface.co/zjwfufu/SMD-MiniMax-H3-Ref2VA-8step-ComfyUI\nPinned recipe revision: fc5f640d0db854cccdcad3b1cdb375458bfaaef4"
+        "DUAL SWITCH REF2VA TEST WORKFLOW\n\nIn LongCaster: Generation settings shows Model source and Acceleration. Production settings can save defaults for this workflow.\n\nModel A: full native REF2VA checkpoint. Model B: FL2VA plus MiniMaxH3RefPatchLoader, an EXPERIMENTAL approximation; not native REF2VA. Requires ComfyUI-MiniMaxH3_Ref-Patch and minimax_h3_ref_patch.safetensors in models/model_patches. Select actual installed checkpoint filenames in both loaders. No files are downloaded automatically.\n\nAcceleration A: HyperFlow 8-step native SIGMAS with Euler, no extra sigma shift. Requires the full node-build HyperFlow adapter. Acceleration B: PDD ACC 8-step native SIGMAS with Euler, video/audio shifts 12/3. Acceleration C: Standard REF2VA without an acceleration adapter, 20 steps, res_multistep sampler, simple scheduler, video/audio shifts 12/3. Acceleration D: SMD REF2VA 8-step LoRA at strength 1.0, Euler, BasicGuider/no CFG, shifts 12/3 and its exact ManualSigmas (final raw interval x0.5). Uses the selected unaccelerated source; no PDD or HyperFlow adapter in this branch. Prefer Model source A (native REF2VA); B remains experimental. Comfy Kitchen is used on paths A-D. Acceleration E: FastH3 Omni - plain 8 steps. This independent branch loads fasth3_omniref_8step_pruned_int8_convrot.safetensors directly and bundles its native MODEL, Euler SAMPLER and exact 8-step SIGMAS (shifts 12/3). It bypasses Model source and the other accelerator/Comfy Kitchen branches. The Model source dropdown has no effect for E. No added LoRA, external PDD Apply, PDD handoff, or attention override. Keep PDD warmup Off; scene/project LoRAs and continuation treatments are separate user settings.\n\nOnly the selected source and acceleration branch are queued. Active upstream choices are frozen in each take; Omni records its standalone checkpoint recipe. Model/patch combinations require GPU testing; selecting a compatible socket does not prove output quality.\n\nMissing node packs/files, invalid switch selections and incompatible socket definitions are reported in the generation panel and block generation. Change defaults in Production after replacing a workflow or changing switch identities. Keep the original ComfyUI tab open.\n\nReference patch source: https://github.com/lihaoyun6/ComfyUI-MiniMaxH3_Ref-Patch\nHyperFlow: existing authorized ComfyUI-HyperFlow-H3 installation. No prompt skips, drift changes or automatic last-frame references.\n\nSMD requires SMD-MiniMax-H3-Ref2VA-8step.safetensors in models/loras (the native ComfyUI conversion, not the Diffusers adapter). No extra Lightning/Turbo adapter. Preserve the supplied ManualSigmas; a generic 8-step scheduler does not reproduce SMD. Existing switch selections/defaults are unchanged. No GPU acceptance claimed.\nSMD recipe: https://huggingface.co/zjwfufu/SMD-MiniMax-H3-Ref2VA-8step-ComfyUI\nPinned recipe revision: fc5f640d0db854cccdcad3b1cdb375458bfaaef4"
       ]
     },
     {
@@ -1149,6 +1149,105 @@
       },
       "widgets_values": [
         "SMD REF2VA - 8 steps",
+        "ref2va"
+      ]
+    },
+    {
+      "id": 49,
+      "type": "LongCasterTimelineFastH3Omni",
+      "pos": [
+        1600,
+        2450
+      ],
+      "size": [
+        520,
+        110
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            33
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "links": [
+            34
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            35
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineFastH3Omni"
+      },
+      "widgets_values": [
+        "fasth3_omniref_8step_pruned_int8_convrot.safetensors"
+      ],
+      "title": "FastH3 Omni - full checkpoint / plain native 8-step recipe"
+    },
+    {
+      "id": 50,
+      "type": "LongCasterTimelineConfiguration",
+      "title": "Named setup - FastH3 Omni / Euler / 8 steps",
+      "pos": [
+        2450,
+        2450
+      ],
+      "size": [
+        350,
+        190
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 33
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 34
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "configuration",
+          "type": "LONGCASTER_CONFIGURATION",
+          "links": [
+            36
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LongCasterTimelineConfiguration"
+      },
+      "widgets_values": [
+        "FastH3 Omni - plain 8 steps",
         "ref2va"
       ]
     }
@@ -1408,6 +1507,38 @@
       0,
       28,
       3,
+      "LONGCASTER_CONFIGURATION"
+    ],
+    [
+      33,
+      49,
+      0,
+      50,
+      0,
+      "MODEL"
+    ],
+    [
+      34,
+      49,
+      1,
+      50,
+      1,
+      "SAMPLER"
+    ],
+    [
+      35,
+      49,
+      2,
+      50,
+      2,
+      "SIGMAS"
+    ],
+    [
+      36,
+      50,
+      0,
+      28,
+      4,
       "LONGCASTER_CONFIGURATION"
     ]
   ],

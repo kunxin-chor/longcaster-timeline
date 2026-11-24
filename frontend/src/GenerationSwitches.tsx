@@ -11,7 +11,7 @@ export function defaultsCompatibility(saved:GenerationDefaults|undefined,live:Ge
  return '';
 }
 
-export function GenerationSwitches({bridge,configurationId,selections,defaults,disabled,onChange,onValidation}:{bridge:Bridge|undefined;configurationId:string;selections:Record<string,string>;defaults?:GenerationDefaults;disabled:boolean;onChange:(id:string,selections:Record<string,string>)=>void;onValidation:(switches:GenerationSwitch[],error:string)=>void}){
+export function GenerationSwitches({bridge,configurationId,selections,defaults,disabled,onChange,onValidation,showErrors=true}:{showErrors?:boolean;bridge:Bridge|undefined;configurationId:string;selections:Record<string,string>;defaults?:GenerationDefaults;disabled:boolean;onChange:(id:string,selections:Record<string,string>)=>void;onValidation:(switches:GenerationSwitch[],error:string)=>void}){
  const [switches,setSwitches]=useState<GenerationSwitch[]>([]),[error,setError]=useState('Checking workflow switches...');
  const key=JSON.stringify(selections),defaultsKey=JSON.stringify(defaults);
  useEffect(()=>{
@@ -25,5 +25,5 @@ export function GenerationSwitches({bridge,configurationId,selections,defaults,d
   }catch(exc){if(current){setError((exc as Error).message);onValidation([],(exc as Error).message);}}finally{busy=false;}}
   void update();const timer=setInterval(()=>void update(),2500);return()=>{current=false;clearInterval(timer);};
  },[bridge,configurationId,key,defaultsKey]);
- return <div className="generation-switches">{switches.map(item=><label className="field-label" key={item.id}>{item.name}<select aria-label={item.name} value={item.select} disabled={disabled} onChange={event=>{const option=item.options.find(option=>option.value===event.target.value)!;onChange(option.configuration_id||configurationId,{...selections,[item.id]:option.value});}}>{item.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}{error&&<p className="warning" role="alert">{error}</p>}</div>;
+ return <div className="generation-switches">{switches.map(item=><label className="field-label" key={item.id}>{item.name}<select aria-label={item.name} value={item.select} disabled={disabled} onChange={event=>{const option=item.options.find(option=>option.value===event.target.value)!;onChange(option.configuration_id||configurationId,{...selections,[item.id]:option.value});}}>{item.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}{showErrors&&error&&<p className="warning" role="alert">{error}</p>}</div>;
 }

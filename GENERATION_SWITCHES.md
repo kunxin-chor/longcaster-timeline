@@ -6,12 +6,12 @@ Load `example_workflows/longcaster_timeline_ref2va_dual_switch.json` in ComfyUI,
 
 The generation panel discovers connected, supported switches and renders one dropdown per switch. This example has:
 
-| Switch | A | B | C | D |
-| --- | --- | --- | --- | --- |
-| Model source | Full native REF2VA | FL2VA + reference patch (experimental) | - | - |
-| Acceleration | HyperFlow, 8 steps | PDD ACC, 8 steps | Standard REF2VA, 20 steps (no acceleration) | SMD REF2VA, 8 steps |
+| Switch | A | B | C | D | E |
+| --- | --- | --- | --- | --- | --- |
+| Model source | Full native REF2VA | FL2VA + reference patch (experimental) | - | - | - |
+| Acceleration | HyperFlow, 8 steps | PDD ACC, 8 steps | Standard REF2VA, 20 steps (no acceleration) | SMD REF2VA, 8 steps | FastH3 Omni, 8 steps (full checkpoint) |
 
-The lazy MODEL switch feeds the acceleration branches. Each acceleration branch bundles its matching MODEL, SAMPLER and SIGMAS in a Configuration node. A Configuration Switch selects the complete bundle. Comfy Kitchen runs after the acceleration patch on each branch. Only the chosen branch is submitted; unused model loaders, adapters and schedules are pruned from the queued prompt.
+The lazy MODEL switch feeds branches A-D. Each branch bundles its matching MODEL, SAMPLER and SIGMAS in a Configuration node. Branch E loads FastH3 Omni independently; the Model source selection has no effect on E. A Configuration Switch selects the complete bundle. Comfy Kitchen runs on branches A-D; plain Omni uses native attention without an override. Only the chosen branch is submitted; unused model loaders, adapters and schedules are pruned from the queued prompt.
 
 Select the real installed filenames in the loaders and adapter nodes. No weights or node packs are installed automatically. HyperFlow uses the existing full node-build adapter, its native SIGMAS and Euler; its SIGMAS must not be shifted again. PDD uses its own SIGMAS with video/audio shifts 12/3 and Euler. Standard REF2VA uses res_multistep, a simple 20-step scheduler at denoise 1.0, the same 12/3 shifts and Comfy Kitchen, with neither HyperFlow nor PDD in its selected ancestry.
 
@@ -79,3 +79,14 @@ Recipe revision: `fc5f640d0db854cccdcad3b1cdb375458bfaaef4` in zjwfufu/SMD-MiniM
 Verified JSON/link/socket consistency, unchanged old configurations/default, selected ancestry and frozen switch selections. No model download or GPU generation was performed. SMD continuation/audio quality remains untested. No additional custom nodes are introduced.
 
 Source: https://huggingface.co/zjwfufu/SMD-MiniMax-H3-Ref2VA-8step-ComfyUI
+
+
+## FastH3 Omni - added 2026-10-21
+
+Reload `example_workflows/longcaster_timeline_ref2va_dual_switch.json`, then select **Acceleration E: FastH3 Omni - plain 8 steps**. Existing A-D paths and default selection are unchanged.
+
+The Timeline FastH3 Omni loader provides the full REF2VA checkpoint, Euler sampler and native eight-step sigma schedule together, with video/audio shifts 12/3 and BasicGuider. It uses `fasth3_omniref_8step_pruned_int8_convrot.safetensors`; select the supported BF16 checkpoint in the loader if preferred. The shared text encoder and both VAEs remain connected to Execution.
+
+Omni bypasses the Model source switch, external acceleration adapters and Comfy Kitchen attention override. It does not add a LoRA or external PDD handoff. Keep **PDD warmup Off**. Scene/project LoRAs and continuation treatments remain independent settings; turn them off when reproducing the plain baseline.
+
+ComfyUI 0.42.1 completed one fresh pull-up root and three continuations in each of four test sets: normal latent; last frame plus 22-frame video motion and fresh audio; statistics-only refinement; Drift Control plus Color Stable. Context-preservation and treatment-application checks passed. Those runs used a direct API graph; this workflow's new E route is checked separately for socket consistency, selected ancestry and switch pruning. The tests do not establish long-chain quality or universally seamless audio. See [FastH3 Omni](FASTH3_OMNI.md) for model details.

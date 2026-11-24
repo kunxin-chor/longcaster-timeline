@@ -7,6 +7,22 @@ const fields=()=>Object.fromEntries(FIELDS.map(f=>[f,'']));
 const draft=(scene_id:string,segment_id:string)=>({scene_id,segment_id,mode:'new',profile:'ref2va',seconds:5,width:768,height:448,seed:1,context:39,fields:fields()}) as any;
 const fixtureVideo=readFileSync('tests/fixtures/scrub.webm');
 const projectVideo=readFileSync('tests/fixtures/project-review.webm');
+async function openConfiguration(page:Page){
+ const group=page.locator('.target-inspector details.group[aria-label="Generation configuration"]');
+ if(await group.count()&&await group.isVisible()&&!await group.evaluate(node=>(node as HTMLDetailsElement).open))await group.locator(':scope > summary').click();
+}
+async function openAdvanced(page:Page){
+ const details=page.locator('.continuation-advanced');
+ await expect(details).toHaveCount(1);
+ if(await details.count()&&!await details.evaluate(node=>(node as HTMLDetailsElement).open))await details.locator(':scope > summary').click();
+}
+async function chooseContinuation(page:Page,method:string){
+ if(method==='video_reference'){
+  await page.getByRole('button',{name:'More continuation methods',exact:true}).click();
+  await page.getByLabel('Experimental continuation method',{exact:true}).selectOption(method);
+ }else await page.getByRole('button',{name:method==='latent'?'Motion latent':'Last frame',exact:true}).click();
+}
+
 async function fixture(page:Page,empty=false,configurations:any[]=[],initialRoute="timeline/generate",switches?:any[]){
   let created=!empty;
   const video=fixtureVideo;
@@ -102,6 +118,14 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
           const id=`segment-${++count}`;scene.segments.push({id,name:`Segment ${String(scene.segments.length+1).padStart(2,'0')}`,takes:[],active_output:null,working_draft:{...body.draft,segment_id:id}});p.last_created_segment_id=id;
           p.effective_references[id]=p.references;
         }
+        if(body.action==='plan_segment'){
+          const scene=p.scenes.find(scene=>scene.id===body.scene_id)!;
+          const index=scene.segments.findIndex(segment=>segment.id===body.after_segment_id);
+          const id=`segment-${++count}`;
+          scene.segments.splice(index+1,0,{id,name:`Segment ${String(index+2).padStart(2,'0')}`,takes:[],active_output:null,planned:true,working_draft:draft(scene.id,id)});
+          scene.segments.forEach((segment,i)=>{if(i>index)segment.name=`Segment ${String(i+1).padStart(2,'0')}`;});
+          p.last_created_segment_id=id;p.effective_references[id]=p.references;
+        }
         if(body.action==='set_scene_anti_burn')p.scenes.find(scene=>scene.id===body.scene_id)!.anti_burn=body.anti_burn;
         if(body.action==='save_draft')allSegments().find(segment=>segment.id===body.segment_id)!.working_draft=body.draft;
         if(body.action==='finalize'){const t=p.takes[body.take_id];allSegments().find(segment=>segment.id===t.segment_id)!.active_output={kind:'single_take',take_id:t.id};}
@@ -119,6 +143,7 @@ async function fixture(page:Page,empty=false,configurations:any[]=[],initialRout
     await route.fulfill({json:result});
   });
   await page.goto(`./#/${initialRoute}`);if(initialRoute==='home'){await expect(page.getByRole('heading',{name:'Productions',exact:true})).toBeVisible();}else if(empty)await expect(page.getByRole('dialog')).toBeVisible();else {await expect(page.getByText('Coastal Journey',{exact:true})).toBeVisible();await expect(page.getByLabel('Generation prompt',{exact:true})).toBeEnabled();}
+  if(initialRoute==='timeline/generate'&&!empty)await openConfiguration(page);
   return {p,current:()=>p,submitted,finish(segmentId:string){
     const segment=allSegments().find(segment=>segment.id===segmentId)!;const scene=p.scenes.find(scene=>scene.segments.includes(segment))!;
     const id=`take-${++count}`;const f={...fields(),detailed_description:'[Shot 1] <hero> watches the waves.'};
@@ -167,11 +192,11 @@ test('last-frame extension uses FL2VA, keeps the finalized source and sends zero
   await page.getByRole('button',{name:'Finalize selected take'}).click();
   await page.getByRole('button',{name:'Extend scene',exact:true}).click();
   await page.getByRole('combobox',{name:'Generation configuration',exact:true}).selectOption('ref');
-  await page.getByRole('combobox',{name:'Continuation method',exact:true}).selectOption('last_frame');
+  await chooseContinuation(page,'last_frame');
   await page.getByRole('combobox',{name:'Generation mode',exact:true}).selectOption('fl2va');
   await expect(page.getByRole('combobox',{name:'Generation mode',exact:true})).toHaveValue('fl2va');
-  await expect(page.getByLabel('Motion context',{exact:true})).toBeDisabled();
-  await expect(page.getByLabel('Motion context',{exact:true})).toHaveValue('0');
+  await expect(page.getByLabel('Carry motion',{exact:true})).toBeDisabled();
+  await expect(page.getByLabel('Carry motion',{exact:true})).toHaveValue('0');
   await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeDisabled();
   await page.getByRole('combobox',{name:'Generation configuration',exact:true}).selectOption('image');
   await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The traveller turns toward the lighthouse.');
@@ -197,16 +222,17 @@ test('REF2VA last-frame continuation retains enabled named references and genera
   await expect(page.getByRole('button',{name:'Finalize selected take'})).toBeEnabled();
   await page.getByRole('button',{name:'Finalize selected take'}).click();
   await page.getByRole('button',{name:'Extend scene',exact:true}).click();
-  await page.getByRole('combobox',{name:'Continuation method',exact:true}).selectOption('last_frame');
+  await chooseContinuation(page,'last_frame');
   await expect(page.getByRole('combobox',{name:'Generation mode',exact:true})).toHaveValue('ref2va');
   await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The person continues performing pull-ups.');
   await expect(page.getByRole('note')).toContainText('<Picture 2> is the last frame');
+  await page.locator('.continuation-prompt-note details>summary').click();
   await expect(page.getByLabel('Automatic continuation instructions')).toContainText('The video continues from <Picture 2> as its first frame.');
   await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue('[Shot 1] The person continues performing pull-ups.');
   await page.getByRole('button',{name:'Toggle compiled prompt',exact:true}).click();
   await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue(/<Picture 2> \(\[Shot 1\] first frame\): fully_preserved/);
   await page.getByRole('button',{name:'Toggle compiled prompt',exact:true}).click();
-  await page.getByLabel('Motion context',{exact:true}).selectOption('22');
+  await page.getByLabel('Carry motion',{exact:true}).selectOption('22');
   await page.getByRole('button',{name:'Generate segment',exact:true}).click();
   await expect.poll(()=>submitted.length).toBe(2);
   const snapshot=(Object.values(p.jobs).at(-1) as any).snapshot;
@@ -226,21 +252,23 @@ test('VPipe-style continuation shows automatic wording, keeps PDD and blocks inc
   const take=finish(p.scenes[0].segments[0].id);
   await page.getByRole('button',{name:'Finalize selected take',exact:true}).click();
   await page.getByRole('button',{name:'Extend scene',exact:true}).click();
-  await page.getByLabel('PDD warmup',{exact:true}).selectOption('auto');
-  await page.getByLabel('Continuation method',{exact:true}).selectOption('video_reference');
+  await openAdvanced(page);
+  await page.getByLabel('PDD base-model handoff',{exact:true}).selectOption('auto');
+  await chooseContinuation(page,'video_reference');
   await expect(page.getByLabel('Generation mode',{exact:true})).toHaveValue('ref2va');
   await expect(page.getByLabel('Generation mode',{exact:true})).toBeDisabled();
-  await expect(page.getByLabel('Motion context',{exact:true})).toHaveCount(0);
-  await expect(page.getByLabel('Latent overlap',{exact:true})).toHaveCount(0);
-  await expect(page.getByLabel('PDD warmup',{exact:true})).toHaveValue('auto');
+  await expect(page.getByLabel('Carry motion',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Motion and audio context',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('PDD base-model handoff',{exact:true})).toHaveValue('auto');
   await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] Continue the pull-ups.');
+  await page.locator('.continuation-prompt-note details>summary').click();
   await expect(page.getByLabel('Automatic video continuation instructions')).toContainText('<Video 1>');
   await expect(page.getByLabel('Generation prompt',{exact:true})).toHaveValue('[Shot 1] Continue the pull-ups.');
   await page.getByLabel('New footage duration',{exact:true}).fill('2');
   await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeDisabled();
   await page.getByLabel('New footage duration',{exact:true}).fill('5');
-  await expect(page.getByLabel('Continuation protection',{exact:true})).toHaveCount(0);
-  await expect(page.getByLabel('Enable H3 Refine',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Drift treatment',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Enable refinement',{exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Generate segment',exact:true}).click();
   await expect.poll(()=>submitted.length).toBe(1);
   const snapshot=(Object.values(p.jobs).at(-1) as any).snapshot;
@@ -371,6 +399,31 @@ test('replace stays in the tail segment and is unavailable on earlier segments',
   expect(next.segment_id).toBe(b.segment_id);expect(next.snapshot.source_take_id).toBe(replacement.id);
 });
 
+test('planned segments can be inserted after the current draft and do not block replacing its take',async({page})=>{
+  const {p,finish,submitted}=await fixture(page);
+  const first=p.scenes[0].segments[0];
+  await page.getByRole('button',{name:'Add planned segment'}).click();
+  await expect(page.getByRole('button',{name:'Select Segment 02'})).toBeVisible();
+  await page.getByRole('button',{name:'Add planned segment'}).click();
+  await expect(page.getByRole('button',{name:'Select Segment 03'})).toBeVisible();
+  expect(p.scenes[0].segments.map(segment=>segment.name)).toEqual(['Segment 01','Segment 02','Segment 03']);
+  await expect(page.getByLabel('Generation prompt',{exact:true})).toBeEnabled();
+  const firstTake=finish(first.id);
+  await expect(page.getByRole('button',{name:'Generate replacement'})).toBeVisible();
+  await page.getByRole('button',{name:'Generate replacement'}).click();
+  await expect.poll(()=>submitted.length).toBe(1);
+  const retry=finish(first.id);
+  await expect(page.getByRole('button',{name:'Finalize selected take'})).toBeEnabled();
+  await page.getByRole('button',{name:'Finalize selected take'}).click();
+  expect(first.active_output?.take_id).toBe(retry.id);
+  await page.getByRole('button',{name:'Select Segment 01'}).click();
+  await expect(page.getByRole('button',{name:'Replace tail segment'})).toBeEnabled();
+  await page.getByRole('button',{name:'Replace tail segment'}).click();
+  await expect(page.getByRole('button',{name:'Generate replacement'})).toBeVisible();
+  expect(p.scenes[0].segments).toHaveLength(3);
+  expect(p.takes[firstTake.id]).toBeDefined();
+});
+
 test('dragging the scene timeline scrubs real video across segment boundaries and keeps the generation draft',async({page})=>{
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const {p,finish}=await fixture(page);
@@ -447,7 +500,7 @@ test('scene preview remains available on smaller screens',async({page})=>{
   await expect(page.getByRole('region',{name:'Scene preview',exact:true})).toBeVisible();
   await expect(page.getByRole('region',{name:'Scene preview',exact:true})).toBeVisible();
   await page.screenshot({path:'tests/screenshots/project-preview-1366.png',fullPage:true});
-  await page.reload();
+  await page.reload();await openConfiguration(page);
   await expect(page.getByRole('region',{name:'Scene preview',exact:true})).toBeVisible();
 });
 
@@ -726,7 +779,7 @@ test('four columns separate target settings and keep the timeline below all moni
  expect(timeline.width).toBeGreaterThan(before.width+targetBox.width);
  await page.getByRole('button',{name:'Hide current segment inspector'}).click();
  await expect.poll(async()=>(await scene.boundingBox())!.width).toBeGreaterThan(before.width+50);
- await page.reload();
+ await page.reload();await openConfiguration(page);
  await expect(page.getByRole('button',{name:'Show current segment inspector'})).toHaveAttribute('aria-expanded','false');
  await expect(scene).toBeVisible();
  await page.getByRole('button',{name:'Show current segment inspector'}).click();
@@ -911,7 +964,7 @@ test('segments inherit changed production defaults after generation until explic
  await page.getByRole('button',{name:'Generate first segment',exact:true}).click();
  await page.getByRole('button',{name:'Stop generation',exact:true}).click();
  expect(p.scenes[0].segments[0].working_draft?.configuration_id).toBe('hyper');
- await page.reload();
+ await page.reload();await openConfiguration(page);
  await expect(page.getByRole('combobox',{name:'Acceleration',exact:true})).toHaveValue('A');
  async function setDefaults(slot:string){
   await page.getByRole('button',{name:'Production',exact:true}).click();
@@ -1007,11 +1060,12 @@ test('normal generation keeps its seed and random generation freezes a fresh vis
 test('seam frame correction freezes the requested offset and offers a review-only baseline',async({page})=>{
  const {p,finish}=await fixture(page);
  const control=page.getByRole('combobox',{name:'Seam frame correction',exact:true});
- await expect(control).toBeDisabled();await expect(control).toHaveValue('0');
+ await expect(control).toHaveCount(0);
  const segment=p.scenes[0].segments[0],first=finish(segment.id);
  segment.active_output={kind:'single_take',take_id:first.id};p.revision++;
  await expect(page.getByRole('button',{name:'Extend scene',exact:true})).toBeEnabled();
  await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+ await openAdvanced(page);
  await expect(control).toBeEnabled();await expect(control).toHaveValue('0');
  await control.selectOption('4');
  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] The action continues.');
@@ -1048,8 +1102,7 @@ test('Anti-Burn scene inheritance, independent skip, missing file guard and segm
  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Anti-Burn LoRA not found');
  await page.getByRole('button',{name:'Close scene settings'}).click();
  await page.getByLabel('Generation prompt',{exact:true}).fill('[Shot 1] Waves roll.');
- await expect(page.getByLabel('Segment Anti-Burn',{exact:true})).toHaveValue('inherit');
- await expect(page.getByText('Skipped for this independent start.',{exact:false})).toBeVisible();
+ await expect(page.getByLabel('Segment Anti-Burn',{exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Generate first segment',exact:true}).click();
  await expect.poll(()=>submitted.length).toBe(1);
  finish(p.scenes[0].segments[0].id);
@@ -1058,6 +1111,8 @@ test('Anti-Burn scene inheritance, independent skip, missing file guard and segm
  const generate=page.getByRole('button',{name:'Generate segment',exact:true});
  await expect(generate).toBeDisabled();
  await expect(page.getByRole('alert').filter({hasText:'Anti-Burn LoRA not found'})).toContainText('Generation is blocked');
+ await openAdvanced(page);
+ await page.locator('.anti-burn-disclosure>summary').click();
  await page.getByLabel('Segment Anti-Burn',{exact:true}).selectOption('off');
  await expect(generate).toBeEnabled();
  await page.getByLabel('Segment Anti-Burn',{exact:true}).selectOption('on');
@@ -1075,9 +1130,13 @@ test('Anti-Burn scene inheritance, independent skip, missing file guard and segm
 
 
 test('continuation protection is explicit and cannot stack with H3 Refine',async({page})=>{
-  await fixture(page);
-  const protection=page.getByLabel('Continuation protection',{exact:true});
-  const refine=page.getByLabel('Enable H3 Refine',{exact:true});
+  const {p,finish}=await fixture(page);
+  finish(p.scenes[0].segments[0].id);
+  await page.getByRole('button',{name:'Finalize selected take',exact:true}).click();
+  await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+  await openAdvanced(page);
+  const protection=page.getByLabel('Drift treatment',{exact:true});
+  const refine=page.getByLabel('Enable refinement',{exact:true});
   await expect(protection).toHaveValue('off');
   await protection.selectOption('drift_color');
   await expect(refine).toBeDisabled();
@@ -1088,31 +1147,15 @@ test('continuation protection is explicit and cannot stack with H3 Refine',async
   await expect(protection).toBeEnabled();
 });
 
-test('generation settings show only controls relevant to each continuation method',async({page})=>{
-  await fixture(page);
-  const method=page.getByLabel('Continuation method',{exact:true});
-  const overlap=page.getByLabel('Latent overlap',{exact:true});
-  const motion=page.getByLabel('Motion context',{exact:true});
-  const protection=page.getByLabel('Continuation protection',{exact:true});
-  const refine=page.getByLabel('Enable H3 Refine',{exact:true});
-  const correction=page.getByLabel('Seam frame correction',{exact:true});
-  const warmup=page.getByLabel('PDD warmup',{exact:true});
-  await expect(overlap).toBeVisible();await expect(motion).toHaveCount(0);
-  await expect(protection).toBeVisible();await expect(refine).toBeVisible();
-  await expect(page.getByText('REF2VA adds the previous segment', {exact:false})).toHaveCount(0);
-  await protection.selectOption('drift_color');
-  await method.selectOption('last_frame');
-  await expect(motion).toBeVisible();await expect(overlap).toHaveCount(0);
-  await expect(protection).toHaveCount(0);await expect(refine).toHaveCount(0);
-  await expect(page.getByLabel('Refinement method',{exact:true})).toHaveCount(0);
-  await expect(correction).toHaveCount(0);await expect(warmup).toBeVisible();
-  await method.selectOption('latent');
-  await expect(protection).toHaveValue('off');await expect(refine).not.toBeChecked();
-  await refine.check();
-  await method.selectOption('video_reference');
-  await expect(motion).toHaveCount(0);await expect(overlap).toHaveCount(0);
-  await expect(protection).toHaveCount(0);await expect(refine).toHaveCount(0);
-  await expect(correction).toHaveCount(0);await expect(warmup).toBeVisible();
-  await method.selectOption('latent');
-  await expect(refine).not.toBeChecked();await expect(overlap).toHaveValue('39');
+test('short sources can choose image continuation without latent context',async({page})=>{
+ const {p,finish}=await fixture(page);
+ const take=finish(p.scenes[0].segments[0].id);take.plan.sampled_frames=22;take.plan.new_frames=22;take.plan.new_seconds=22/24;take.plan.delivery.end=22;
+ await page.getByRole('button',{name:'Finalize selected take',exact:true}).click();
+ await page.getByRole('button',{name:'Extend scene',exact:true}).click();
+ await expect(page.getByText('The source is shorter than the selected context.',{exact:false})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeDisabled();
+ await chooseContinuation(page,'last_frame');
+ await expect(page.getByLabel('Motion and audio context',{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel('Carry motion',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Generate segment',exact:true})).toBeEnabled();
 });

@@ -909,3 +909,18 @@ Implementation is acceptable only when:
 **Do not redesign the screen into another interface concept. Implement the approved LongCaster Timeline layout and behavior.**
 
 At completion, provide screenshots of the implemented UI, a summary of changed files, test results and any remaining milestone-gated functionality.
+
+
+## Continuation inspector update ? 2026-10-21
+
+This user-approved update supersedes the earlier ordering of the right Generate panel:
+
+- Continuation comes first, with Motion latent and Last frame buttons. VPipe-style video reference is under More / Experimental.
+- Motion latent shows AV context and drift treatment. Last frame shows optional 22-frame motion and the fresh-audio note. Inapplicable latent controls are absent from image/video-reference modes.
+- Refinement, seam frame correction, reference sizing and Anti-Burn live in collapsed Advanced controls. Refinement fields appear only when enabled; statistics-only hides the unused refinement-model control. Refinement and drift treatment remain mutually exclusive.
+- Each method remembers its own options in the segment draft. Queued effective settings clear inactive treatments; saved Take snapshots remain immutable.
+- PDD base-model handoff replaces the PDD warmup label. Candidate availability uses actual selected graph ancestry rather than configuration names; loaded-model validation remains authoritative. Fused Omni excludes handoff and a saved incompatible setting must be explicitly turned off. Direct/unknown paths retain the runtime-check option under Advanced or first-segment configuration.
+- Generation configuration, Past takes and detailed progress are collapsed below continuation controls. Compact progress, duration, seed, Finalize and Generate stay in the pinned footer. Validation failures remain visible outside collapsed sections.
+- Independent first segments omit continuation-only controls. A short source can prepare an extension and select last-frame mode instead of being rejected before choosing a method.
+
+Checked with mocked browser productions at desktop and 1366 x 768 sizes. New focused cases cover mode visibility, draft reload, exclusion of hidden treatments, statistics-model normalization, Omni handoff rejection and the pinned controls. No production reads or GPU generation are required for these UI checks.
